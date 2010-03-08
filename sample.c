@@ -9,8 +9,13 @@
 ****************************************************************************
 *   UPDATES
 *
-*   $Id: sample.c,v 1.1.1.1 2004/04/04 14:54:13 michael Exp $
+*   $Id: sample.c,v 1.2 2004/08/13 13:08:43 michael Exp $
 *   $Log: sample.c,v $
+*   Revision 1.2  2004/08/13 13:08:43  michael
+*   Add support for adaptive encoding
+*
+*   Use executable name in help messages
+*
 *   Revision 1.1.1.1  2004/04/04 14:54:13  michael
 *   Initial version
 *
@@ -46,13 +51,9 @@
 #include "arcode.h"
 
 /***************************************************************************
-*                            TYPE DEFINITIONS
+*                               PROTOTYPES
 ***************************************************************************/
-typedef enum
-{
-    ENCODE,
-    DECODE
-} MODES;
+char *RemovePath(char *fullPath);
 
 /***************************************************************************
 *                                FUNCTIONS
@@ -72,25 +73,31 @@ typedef enum
 int main(int argc, char *argv[])
 {
     int opt;
-    char *inFile, *outFile;  /* name of input & output files */
-    MODES mode;
+    char *inFile, *outFile; /* name of input & output files */
+    char encode;            /* encode/decode */
+    char staticModel;       /* static/adaptive model*/
 
     /* initialize data */
     inFile = NULL;
     outFile = NULL;
-    mode = ENCODE;
+    encode = TRUE;
+    staticModel = TRUE;
 
     /* parse command line */
-    while ((opt = getopt(argc, argv, "cdtni:o:h?")) != -1)
+    while ((opt = getopt(argc, argv, "acdtni:o:h?")) != -1)
     {
         switch(opt)
         {
+            case 'a':       /* adaptive model vs. static */
+                staticModel = FALSE;
+                break;
+
             case 'c':       /* compression mode */
-                mode = ENCODE;
+                encode = TRUE;
                 break;
 
             case 'd':       /* decompression mode */
-                mode = DECODE;
+                encode = FALSE;
                 break;
 
             case 'i':       /* input file name */
@@ -151,14 +158,15 @@ int main(int argc, char *argv[])
 
             case 'h':
             case '?':
-                printf("Usage: sample <options>\n\n");
+                printf("Usage: %s <options>\n\n", RemovePath(argv[0]));
                 printf("options:\n");
                 printf("  -c : Encode input file to output file.\n");
                 printf("  -d : Decode input file to output file.\n");
                 printf("  -i <filename> : Name of input file.\n");
                 printf("  -o <filename> : Name of output file.\n");
+                printf("  -a : Use adaptive model instead of static.\n");
                 printf("  -h | ?  : Print out command line options.\n\n");
-                printf("Default: sample -c\n");
+                printf("Default: %s -c\n", RemovePath(argv[0]));
                 return(EXIT_SUCCESS);
         }
     }
@@ -167,7 +175,7 @@ int main(int argc, char *argv[])
     if (inFile == NULL)
     {
         fprintf(stderr, "Input file must be provided\n");
-        fprintf(stderr, "Enter \"sample -?\" for help.\n");
+        fprintf(stderr, "Enter \"%s -?\" for help.\n", RemovePath(argv[0]));
 
         if (outFile != NULL)
         {
@@ -179,7 +187,7 @@ int main(int argc, char *argv[])
     else if (outFile == NULL)
     {
         fprintf(stderr, "Output file must be provided\n");
-        fprintf(stderr, "Enter \"sample -?\" for help.\n");
+        fprintf(stderr, "Enter \"%s -?\" for help.\n", RemovePath(argv[0]));
 
         if (inFile != NULL)
         {
@@ -190,16 +198,49 @@ int main(int argc, char *argv[])
     }
 
     /* we have valid parameters encode or decode */
-    if (mode == ENCODE)
+    if (encode)
     {
-        ArEncodeFile(inFile, outFile);
+        ArEncodeFile(inFile, outFile, staticModel);
     }
     else
     {
-        ArDecodeFile(inFile, outFile);
+        ArDecodeFile(inFile, outFile, staticModel);
     }
 
     free(inFile);
     free(outFile);
     return EXIT_SUCCESS;
+}
+
+/****************************************************************************
+*   Function   : RemovePath
+*   Description: This is function accepts a pointer to the name of a file
+*                along with path information and returns a pointer to the
+*                character that is not part of the path.
+*   Parameters : fullPath - pointer to an array of characters containing
+*                           a file name and possible path modifiers.
+*   Effects    : None
+*   Returned   : Returns a pointer to the first character after any path
+*                information.
+****************************************************************************/
+char *RemovePath(char *fullPath)
+{
+    int i;
+    char *start, *tmp;                          /* start of file name */
+    const char delim[3] = {'\\', '/', ':'};     /* path deliminators */
+
+    start = fullPath;
+
+    /* find the first character after all file path delimiters */
+    for (i = 0; i < 3; i++)
+    {
+        tmp = strrchr(start, delim[i]);
+
+        if (tmp != NULL)
+        {
+            start = tmp + 1;
+        }
+    }
+
+    return start;
 }

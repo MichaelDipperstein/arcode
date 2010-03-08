@@ -10,8 +10,11 @@
 ****************************************************************************
 *   UPDATES
 *
-*   $Id: arcode.h,v 1.1.1.1 2004/04/04 14:54:13 michael Exp $
+*   $Id: arcode.h,v 1.2 2004/08/13 13:09:46 michael Exp $
 *   $Log: arcode.h,v $
+*   Revision 1.2  2004/08/13 13:09:46  michael
+*   Add support for adaptive encoding
+*
 *   Revision 1.1.1.1  2004/04/04 14:54:13  michael
 *   Initial version
 *
@@ -40,9 +43,23 @@
 #define _ARCODE_H_
 
 /***************************************************************************
+*                                CONSTANTS
+***************************************************************************/
+#ifndef FALSE
+#define FALSE       0
+#endif
+
+#ifndef TRUE
+#define TRUE        1
+#endif
+
+/***************************************************************************
 *                               PROTOTYPES
 ***************************************************************************/
-int ArEncodeFile(char *inFile, char *outFile);	/* encode inFile */
-int ArDecodeFile(char *inFile, char *outFile);	/* decode inFile*/
+ /* encode inFile */
+int ArEncodeFile(char *inFile, char *outFile, char staticModel);
+
+/* decode inFile*/
+int ArDecodeFile(char *inFile, char *outFile, char staticModel);
 
 #endif  /* ndef _ARCODE_H_ */

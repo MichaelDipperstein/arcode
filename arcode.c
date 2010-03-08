@@ -2,15 +2,20 @@
 *                 Arithmetic Encoding and Decoding Library
 *
 *   File    : arcode.c
-*   Purpose : Use arithmetic coding to compress/decompress files
+*   Purpose : Use arithmetic coding to compress/decompress file streams
 *   Author  : Michael Dipperstein
 *   Date    : April 2, 2004
 *
 ****************************************************************************
 *   UPDATES
 *
-*   $Id: arcode.c,v 1.1.1.1 2004/04/04 14:54:13 michael Exp $
+*   $Id: arcode.c,v 1.2 2004/08/13 13:10:27 michael Exp $
 *   $Log: arcode.c,v $
+*   Revision 1.2  2004/08/13 13:10:27  michael
+*   Add support for adaptive encoding
+*
+*   Use binary search when trying to find decoded symbol
+*
 *   Revision 1.1.1.1  2004/04/04 14:54:13  michael
 *   Initial version
 *
@@ -46,7 +51,6 @@
 
 /* compile-time options */
 #undef BUILD_DEBUG_OUTPUT                   /* debugging output */
-#undef BUILD_NON_PORTABLE                   /* 16-bit little endian code */
 
 #if !(USHRT_MAX < ULONG_MAX)
 #error "Implementation requires USHRT_MAX < ULONG_MAX"
@@ -60,10 +64,7 @@ typedef unsigned short probability_t;       /* probability count type */
 /***************************************************************************
 *                                CONSTANTS
 ***************************************************************************/
-#define FALSE       0
-#define TRUE        1
-
-#define             EOF_CHAR    (UCHAR_MAX + 1)
+#define EOF_CHAR    (UCHAR_MAX + 1)
 
 /* number of bits used to compute running code values */
 #define PRECISION           (8 * sizeof(probability_t))
@@ -71,6 +72,9 @@ typedef unsigned short probability_t;       /* probability count type */
 /* 2 bits less than precision. keeps lower and upper bounds from crossing. */
 #define MAX_PROBABILITY     (1 << (PRECISION - 2))
 
+/***************************************************************************
+*                                  MACROS
+***************************************************************************/
 /* set bit x to 1 in probability_t.  Bit 0 is MSB */
 #define MASK_BIT(x) (probability_t)(1 << (PRECISION - (1 + (x))))
 
@@ -100,15 +104,16 @@ void WriteHeader(bit_file_t *bfpOut);
 int ReadHeader(bit_file_t *bfpIn);
 
 /* applies symbol's ranges to current upper and lower range bounds */
-void ApplySymbolRange(int symbol);
+void ApplySymbolRange(int symbol, char staticModel);
 
 /* routines for encoding*/
 void WriteEncodedBits(bit_file_t *bfpOut);
 void WriteRemaining(bit_file_t *bfpOut);
 int BuildProbabilityRangeList(FILE *fpIn);
+void InitializeAdaptiveProbabilityRangeList(void);
 
 /* routines for decoding */
-void InitializeDecoder(bit_file_t *bfpOut);
+void InitializeDecoder(bit_file_t *bfpOut, char staticModel);
 probability_t GetUnscaledCode(void);
 int GetSymbolFromProbability(probability_t probability);
 void ReadEncodedBits(bit_file_t *bfpIn);
@@ -124,10 +129,11 @@ void ReadEncodedBits(bit_file_t *bfpIn);
 *                of that file.
 *   Parameters : inFile - Name of file to encode
 *                outFile - Name of file to write encoded output to
+*                staticModel - TRUE if encoding with a static model
 *   Effects    : File is arithmetically encoded
 *   Returned   : TRUE for success, otherwise FALSE.
 ***************************************************************************/
-int ArEncodeFile(char *inFile, char *outFile)
+int ArEncodeFile(char *inFile, char *outFile, char staticModel)
 {
     int c;
     FILE *fpIn;                         /* uncoded input */
@@ -154,19 +160,27 @@ int ArEncodeFile(char *inFile, char *outFile)
         }
     }
 
-    /* count symbols in file and come up with a list of probability ranges */
-    if (!BuildProbabilityRangeList(fpIn))
+    if (staticModel)
     {
-        fclose(fpIn);
-        BitFileClose(bfpOut);
-        fprintf(stderr, "Error determining frequency ranges.\n");
-        return FALSE;
+        /* count symbols in file and come up with a list of probability ranges */
+        if (!BuildProbabilityRangeList(fpIn))
+        {
+            fclose(fpIn);
+            BitFileClose(bfpOut);
+            fprintf(stderr, "Error determining frequency ranges.\n");
+            return FALSE;
+        }
+
+        rewind(fpIn);
+
+        /* write information required to decode file to encoded file */
+        WriteHeader(bfpOut);
     }
-
-    rewind(fpIn);
-
-    /* write information required to decode file to encoded file */
-    WriteHeader(bfpOut);
+    else
+    {
+        /* initialize probability ranges asumming uniform distribution */
+        InitializeAdaptiveProbabilityRangeList();
+    }
 
     /* initialize coder start with full probability range [0%, 100%) */
     lower = 0;
@@ -176,13 +190,13 @@ int ArEncodeFile(char *inFile, char *outFile)
     /* encode symbols one at a time */
     while ((c = fgetc(fpIn)) != EOF)
     {
-        ApplySymbolRange(c);
+        ApplySymbolRange(c, staticModel);
         WriteEncodedBits(bfpOut);
     }
 
     fclose(fpIn);
 
-    ApplySymbolRange(EOF_CHAR);     /* encode an EOF */
+    ApplySymbolRange(EOF_CHAR, staticModel);    /* encode an EOF */
     WriteEncodedBits(bfpOut);
 
     WriteRemaining(bfpOut);         /* write out least significant bits */
@@ -319,9 +333,7 @@ void WriteHeader(bit_file_t *bfpOut)
 {
     int c;
     probability_t previous = 0;         /* symbol count so far */
-#ifndef BUILD_NON_PORTABLE
     int bit;
-#endif
 
     for(c = 0; c <= (EOF_CHAR - 1); c++)
     {
@@ -331,19 +343,12 @@ void WriteHeader(bit_file_t *bfpOut)
             BitFilePutChar((char)c, bfpOut);
             previous = (ranges[UPPER(c)] - previous);   /* symbol count */
 
-#ifdef BUILD_NON_PORTABLE
-            /* write count as PRECISION - 2 bits bit big endian value */
-            previous <<= 2;
-            previous = (previous >> 8) | (previous << 8);
-			BitFilePutBits(bfpOut, (void *)&previous, PRECISION - 2);
-#else
             /* write count PRECISION - 2 bits, one at a time (LSB first) */
             for (bit = 0; bit < (PRECISION - 2); bit++)
             {
                 BitFilePutBit((previous & 1), bfpOut);
                 previous >>= 1;
             }
-#endif
 
             /* current upper range is previous for the next character */
             previous = ranges[UPPER(c)];
@@ -357,21 +362,70 @@ void WriteHeader(bit_file_t *bfpOut)
 }
 
 /***************************************************************************
+*   Function   : InitializeAdaptiveProbabilityRangeList
+*   Description: This routine builds the initial global list of upper and
+*                lower probability ranges for each symbol.  This routine
+*                is used by both adaptive encoding and decoding.
+*                Currently it provides a uniform symbol distribution.
+*                Other distributions might be better suited for known data
+*                types (such as English text).
+*   Parameters : NONE
+*   Effects    : ranges array is made to contain initial probability ranges
+*                for each symbol.
+*   Returned   : NONE
+***************************************************************************/
+void InitializeAdaptiveProbabilityRangeList(void)
+{
+    int c;
+
+    cumulativeProb = 0;
+    ranges[0] = 0;          /* absolute lower range */
+
+    /* assign upper and lower probability ranges assuming */
+    for (c = 1; c <= UPPER(EOF_CHAR); c++)
+    {
+        ranges[c] = ranges[c - 1] + 1;
+        cumulativeProb++;
+    }
+
+#ifdef BUILD_DEBUG_OUTPUT
+    /* dump list of ranges */
+    for (c = 0; c < UPPER(EOF_CHAR); c++)
+    {
+        printf("%02X\t%d\t%d\n", c, ranges[LOWER(c)], ranges[UPPER(c)]);
+    }
+#endif
+
+    return;
+}
+
+/***************************************************************************
 *   Function   : ApplySymbolRange
 *   Description: This function is used for both encoding and decoding.  It
 *                applies the range restrictions of a new symbol to the
 *                current upper and lower range bounds of an encoded stream.
+*                If an adaptive model is being used, the probability range
+*                list will be updated after the effect of the symbol is
+*                applied.
 *   Parameters : symbol - The symbol to be added to the current code range
+*                staticModel - TRUE if encoding/decoding with a static
+*                              model.
 *   Effects    : The current upper and lower range bounds are adjusted to
 *                include the range effects of adding another symbol to the
-*                encoded stream.
+*                encoded stream.  If an adaptive model is being used, the
+*                probability range list will be updated.
 *   Returned   : None
 ***************************************************************************/
-void ApplySymbolRange(int symbol)
+void ApplySymbolRange(int symbol, char staticModel)
 {
     unsigned long range;        /* must be able to hold max upper + 1 */
     unsigned long rescaled;     /* range rescaled for range of new symbol */
                                 /* must hold range * max upper */
+
+    /* for updating dynamic models */
+    int i;
+    probability_t original;     /* range value prior to rescale */
+    probability_t delta;        /* range for individual symbol */
 
     /***********************************************************************
     * Calculate new upper and lower ranges.  Since the new upper range is
@@ -392,6 +446,41 @@ void ApplySymbolRange(int symbol)
 
     /* new lower = old lower + rescaled new upper */
     lower = lower + (probability_t)rescaled;
+
+    if (!staticModel)
+    {
+        /* add new symbol to model */
+        cumulativeProb++;
+        for (i = UPPER(symbol); i <= UPPER(EOF_CHAR); i++)
+        {
+            ranges[i] += 1;
+        }
+
+        /* half current values if cumulativeProb is too large */
+        if (cumulativeProb >= MAX_PROBABILITY)
+        {
+            cumulativeProb = 0;
+            original = 0;
+
+            for (i = 1; i <= UPPER(EOF_CHAR); i++)
+            {
+                delta = ranges[i] - original;
+                if (delta <= 2)
+                {
+                    /* prevent probability from being 0 */
+                    original = ranges[i];
+                    ranges[i] = ranges[i - 1] + 1;
+                }
+                else
+                {
+                    original = ranges[i];
+                    ranges[i] = ranges[i - 1] + (delta / 2);
+                }
+
+                cumulativeProb += (ranges[i] - ranges[i - 1]);
+            }
+        }
+    }
 
 #ifdef BUILD_DEBUG_OUTPUT
     if (lower > upper)
@@ -498,10 +587,11 @@ void WriteRemaining(bit_file_t *bfpOut)
 *                it then uses to decode the rest of the file.
 *   Parameters : inFile - Name of file to decode
 *                outFile - Name of file to write decoded output to
+*                staticModel - TRUE if decoding with a static model
 *   Effects    : Encoded file is decoded
 *   Returned   : TRUE for success, otherwise FALSE.
 ***************************************************************************/
-int ArDecodeFile(char *inFile, char *outFile)
+int ArDecodeFile(char *inFile, char *outFile, char staticModel)
 {
     int c;
     probability_t unscaled;
@@ -529,16 +619,19 @@ int ArDecodeFile(char *inFile, char *outFile)
         }
     }
 
-    /* build probability ranges from header in file */
-    if (ReadHeader(bfpIn) == FALSE)
+    if (staticModel)
     {
-        BitFileClose(bfpIn);
-        fclose(fpOut);
-        return FALSE;
+        /* build probability ranges from header in file */
+        if (ReadHeader(bfpIn) == FALSE)
+        {
+            BitFileClose(bfpIn);
+            fclose(fpOut);
+            return FALSE;
+        }
     }
 
-
-    InitializeDecoder(bfpIn);   /* read start of code and initialize bounds */
+    /* read start of code and initialize bounds, and adaptive ranges */
+    InitializeDecoder(bfpIn, staticModel);
 
     /* decode one symbol at a time */
     for (;;)
@@ -562,7 +655,7 @@ int ArDecodeFile(char *inFile, char *outFile)
         fputc((char)c, fpOut);
 
         /* factor out symbol */
-        ApplySymbolRange(c);
+        ApplySymbolRange(c, staticModel);
         ReadEncodedBits(bfpIn);
     }
 
@@ -586,9 +679,7 @@ int ReadHeader(bit_file_t *bfpIn)
 {
     int c;
     probability_t count;
-#ifndef BUILD_NON_PORTABLE
     int i, nextBit;
-#endif
 
     cumulativeProb = 0;
 
@@ -603,17 +694,6 @@ int ReadHeader(bit_file_t *bfpIn)
         c = BitFileGetChar(bfpIn);
         count = 0;
 
-#ifdef BUILD_NON_PORTABLE
-        /* read PRECISION - 2 bits big endian count and make little endian */
-        if (BitFileGetBits(bfpIn, (void *)&count, PRECISION - 2) == EOF)
-        {
-            /* read failed */
-            return FALSE;
-        }
-
-        count = (count >> 8) | (count << 8);
-		count >>= 2;
-#else
         /* read PRECISION - 2 bits one at a time (LSB first) */
         for (i = 0; i < (PRECISION - 2); i++)
         {
@@ -629,7 +709,6 @@ int ReadHeader(bit_file_t *bfpIn)
                 count |= (1 << i);
             }
         }
-#endif
 
         if (count == 0)
         {
@@ -651,12 +730,21 @@ int ReadHeader(bit_file_t *bfpIn)
 *                max/min values and reads in the most significant encoded
 *                bits.
 *   Parameters : bfpIn - file to read from
-*   Effects    : upper, lower, and code are initialized
+*                staticModel - TRUE if decoding using a staticModel
+*   Effects    : upper, lower, and code are initialized.  The probability
+*                range list will also be initialized if an adaptive model
+*                will be used.
 *   Returned   : TRUE for success, otherwise FALSE
 ****************************************************************************/
-void InitializeDecoder(bit_file_t *bfpIn)
+void InitializeDecoder(bit_file_t *bfpIn, char staticModel)
 {
     int i;
+
+    if (!staticModel)
+    {
+        /* initialize ranges for adaptive model */
+        InitializeAdaptiveProbabilityRangeList();
+    }
 
     code = 0;
 
@@ -704,25 +792,44 @@ probability_t GetUnscaledCode(void)
 /****************************************************************************
 *   Function   : GetSymbolFromProbability
 *   Description: Given a probability, this function will return the symbol
-*                whose range includes that probability.
+*                whose range includes that probability.  Symbol is found
+*                binary search on probability ranges.
 *   Parameters : probability - probability of symbol.
 *   Effects    : None
 *   Returned   : -1 for failure, otherwise encoded symbol
 ****************************************************************************/
 int GetSymbolFromProbability(probability_t probability)
 {
-    int c;
+    int first, last, middle;    /* indicies for binary search */
 
-    for (c = 0; c <= EOF_CHAR; c++)
+    first = 0;
+    last = UPPER(EOF_CHAR);
+    middle = last / 2;
+
+    /* binary search */
+    while (last >= first)
     {
-        if ((probability >= ranges[LOWER(c)]) &&
-            (probability < ranges[UPPER(c)]))
+        if (probability < ranges[LOWER(middle)])
         {
-            return c;
+            /* lower bound is higher than probability */
+            last = middle - 1;
+            middle = first + ((last - first) / 2);
+            continue;
         }
+
+        if (probability >= ranges[UPPER(middle)])
+        {
+            /* upper bound is lower than probability */
+            first = middle + 1;
+            middle = first + ((last - first) / 2);
+            continue;
+        }
+
+        /* we must have found the right value */
+        return middle;
     }
 
-    /* error: none of the ranges include the */
+    /* error: none of the ranges include the probability */
     fprintf(stderr, "Unknown Symbol: %d (max: %d)\n", probability,
         ranges[UPPER(EOF_CHAR)]);
     return -1;
