@@ -9,8 +9,19 @@
 ****************************************************************************
 *   UPDATES
 *
-*   $Id: arcode.c,v 1.2 2004/08/13 13:10:27 michael Exp $
+*   $Id: arcode.c,v 1.5 2007/09/08 15:47:02 michael Exp $
 *   $Log: arcode.c,v $
+*   Revision 1.5  2007/09/08 15:47:02  michael
+*   Changes required for LGPL v3.
+*
+*   Revision 1.4  2006/03/02 06:43:37  michael
+*   Expanded tabs
+*
+*   Revision 1.3  2006/01/12 07:39:24  michael
+*   Use BitFileGetBitsIntBit and FilePutBitsInt for reading and writing the
+*   header.  This makes the code a little cleaner, but the new header is not
+*   compatible with the old header.
+*
 *   Revision 1.2  2004/08/13 13:10:27  michael
 *   Add support for adaptive encoding
 *
@@ -22,21 +33,22 @@
 ****************************************************************************
 *
 * Arcode: An ANSI C Arithmetic Encoding/Decoding Routines
-* Copyright (C) 2004 by Michael Dipperstein (mdipper@cs.ucsb.edu)
+* Copyright (C) 2004, 2006-2007 by Michael Dipperstein (mdipper@cs.ucsb.edu)
 *
-* This library is free software; you can redistribute it and/or
-* modify it under the terms of the GNU Lesser General Public
-* License as published by the Free Software Foundation; either
-* version 2.1 of the License, or (at your option) any later version.
+* This file is part of the arcode library.
 *
-* This library is distributed in the hope that it will be useful,
+* The arcode library is free software; you can redistribute it and/or
+* modify it under the terms of the GNU Lesser General Public License as
+* published by the Free Software Foundation; either version 3 of the
+* License, or (at your option) any later version.
+*
+* The arcode library is distributed in the hope that it will be useful,
 * but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-* Lesser General Public License for more details.
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser
+* General Public License for more details.
 *
-* You should have received a copy of the GNU Lesser General Public
-* License along with this library; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+* You should have received a copy of the GNU Lesser General Public License
+* along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *
 ***************************************************************************/
 
@@ -79,7 +91,7 @@ typedef unsigned short probability_t;       /* probability count type */
 #define MASK_BIT(x) (probability_t)(1 << (PRECISION - (1 + (x))))
 
 /* indices for a symbol's lower and upper cumulative probability ranges */
-#define LOWER(c)	(c)
+#define LOWER(c)        (c)
 #define UPPER(c)    ((c) + 1)
 
 /***************************************************************************
@@ -220,8 +232,8 @@ void SymbolCountToProbabilityRanges(void)
 {
     int c;
 
-    ranges[0] = 0;        			/* absolute lower bound is 0 */
-    ranges[UPPER(EOF_CHAR)] = 1; 	/* add 1 EOF character */
+    ranges[0] = 0;                              /* absolute lower bound is 0 */
+    ranges[UPPER(EOF_CHAR)] = 1;        /* add 1 EOF character */
     cumulativeProb++;
 
     /* assign upper and lower probability ranges */
@@ -269,7 +281,7 @@ int BuildProbabilityRangeList(FILE *fpIn)
         return FALSE;
     }
 
-	/* start with no symbols counted */
+        /* start with no symbols counted */
     for (c = 0; c < EOF_CHAR; c++)
     {
         countArray[c] = 0;
@@ -333,7 +345,10 @@ void WriteHeader(bit_file_t *bfpOut)
 {
     int c;
     probability_t previous = 0;         /* symbol count so far */
-    int bit;
+
+#if BUILD_DEBUG_OUTPUT
+    printf("HEADER:\n");
+#endif
 
     for(c = 0; c <= (EOF_CHAR - 1); c++)
     {
@@ -343,12 +358,13 @@ void WriteHeader(bit_file_t *bfpOut)
             BitFilePutChar((char)c, bfpOut);
             previous = (ranges[UPPER(c)] - previous);   /* symbol count */
 
-            /* write count PRECISION - 2 bits, one at a time (LSB first) */
-            for (bit = 0; bit < (PRECISION - 2); bit++)
-            {
-                BitFilePutBit((previous & 1), bfpOut);
-                previous >>= 1;
-            }
+#if BUILD_DEBUG_OUTPUT
+            printf("%02X\t%d\n", c, previous);
+#endif
+
+            /* write out PRECISION - 2 bit count */
+            BitFilePutBitsInt(bfpOut, &previous, (PRECISION - 2),
+                sizeof(probability_t));
 
             /* current upper range is previous for the next character */
             previous = ranges[UPPER(c)];
@@ -357,8 +373,8 @@ void WriteHeader(bit_file_t *bfpOut)
 
     /* now write end of table (zero count) */
     BitFilePutChar(0x00, bfpOut);
-	previous = 0;
-	BitFilePutBits(bfpOut, (void *)&previous, PRECISION - 2);
+    previous = 0;
+    BitFilePutBits(bfpOut, (void *)&previous, PRECISION - 2);
 }
 
 /***************************************************************************
@@ -679,7 +695,10 @@ int ReadHeader(bit_file_t *bfpIn)
 {
     int c;
     probability_t count;
-    int i, nextBit;
+
+#if BUILD_DEBUG_OUTPUT
+    printf("HEADER:\n");
+#endif
 
     cumulativeProb = 0;
 
@@ -694,24 +713,22 @@ int ReadHeader(bit_file_t *bfpIn)
         c = BitFileGetChar(bfpIn);
         count = 0;
 
-        /* read PRECISION - 2 bits one at a time (LSB first) */
-        for (i = 0; i < (PRECISION - 2); i++)
+        /* read (PRECISION - 2) bit count */
+       if (BitFileGetBitsInt(bfpIn, &count, (PRECISION - 2),
+            sizeof(probability_t)) == EOF)
         {
-            if ((nextBit = BitFileGetBit(bfpIn)) == EOF)
-            {
-                /* premature EOF */
-                fprintf(stderr, "Error: unexpected EOF\n");
-                return FALSE;
-            }
-            else if (nextBit == 1)
-            {
-                /* or in 1 bit */
-                count |= (1 << i);
-            }
+            /* premature EOF */
+            fprintf(stderr, "Error: unexpected EOF\n");
+            return FALSE;
         }
+
+#if BUILD_DEBUG_OUTPUT
+        printf("%02X\t%d\n", c, count);
+#endif
 
         if (count == 0)
         {
+            /* 0 count means end of header */
             break;
         }
 
@@ -865,7 +882,7 @@ void ReadEncodedBits(bit_file_t *bfpIn)
     {
         if (( upper & MASK_BIT(0)) == (lower & MASK_BIT(0)))
         {
-			/* MSBs match, allow them to be shifted out*/
+                        /* MSBs match, allow them to be shifted out*/
         }
         else if ((lower & MASK_BIT(1)) && !(upper & MASK_BIT(1)))
         {
@@ -874,23 +891,23 @@ void ReadEncodedBits(bit_file_t *bfpIn)
             * match.  It must be the case that lower and upper have MSBs of
             * 01 and 10.  Remove 2nd MSB from lower and upper.
             ***************************************************************/
-			lower   &= ~(MASK_BIT(0) | MASK_BIT(1));
+                        lower   &= ~(MASK_BIT(0) | MASK_BIT(1));
             upper  |= MASK_BIT(1);
             code ^= MASK_BIT(1);
 
             /* the shifts below make the rest of the bit removal work */
-		}
+        }
         else
         {
-			/* nothing to shift out */
-			return;
+            /* nothing to shift out */
+            return;
         }
 
         /*******************************************************************
         * Shift out old MSB and shift in new LSB.  Remember that lower has
         * all 0s beyond it's end and upper has all 1s beyond it's end.
         *******************************************************************/
-		lower <<= 1;
+                lower <<= 1;
         upper <<= 1;
         upper |= 1;
         code <<= 1;
@@ -899,10 +916,10 @@ void ReadEncodedBits(bit_file_t *bfpIn)
         {
             /* either all bits are shifted out or error occurred */
         }
-		else
-		{
-        	code |= nextBit;		/* add next encoded bit to code */
-		}
+        else
+        {
+            code |= nextBit;                /* add next encoded bit to code */
+        }
     }
 
     return;
