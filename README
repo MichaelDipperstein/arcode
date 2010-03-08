@@ -55,6 +55,8 @@ options:
 HISTORY
 -------
 04/01/04  - Initial Release
+06/21/05  - Corrected BitFileGetBits/PutBits error that accessed an extra
+            byte when given an integral number of bytes.
 
 TODO
 ----
