@@ -1,0 +1,65 @@
+DESCRIPTION
+-----------
+This archive contains a simple and readable ANSI C implementation of
+Arithmetic coding and decoding.  This implementation is not intended to be
+the best, fastest, smallest, or any other performance related adjective.
+
+More information on Arithmetic encoding may be found at:
+http://www.datacompression.info/ArithmeticCoding.shtml
+
+FILES
+-----
+arcode.c        - Library of Arithmetic encoding and decoding routines.
+arcode.h        - Header containing prototypes for library functions.
+bitfile.c       - Library to allow bitwise reading and writing of files.
+bitfile.h       - Header for bitfile library.
+COPYING         - Rules for copying and distributing LGPL software
+getopt.c        - LGPL version of getopt source from GNU project
+getopt.h        - LGPL version of getopt headers from GNU project
+LICENSE         - GNU Lesser General Public License
+Makefile        - makefile for this project (assumes gcc compiler and GNU make)
+README          - this file
+sample.c        - Demonstration of how to use Arithmetic library functions
+
+BUILDING
+--------
+To build these files with GNU make and gcc, simply enter "make" from the
+command line.  The executable will be named sample (or sample.exe).
+
+USAGE
+-----
+Usage: sample <options>
+
+options:
+  -c : Encode input file to output file.
+  -d : Decode input file to output file.
+  -i <filename> : Name of input file.
+  -o <filename> : Name of output file.
+  -h|?  : Print out command line options.
+
+-c      Generate a static probability range list for the specified input file
+        (see -i) then use arithmetic coding compresses the file using the
+        range list to the specified output file (see -o).
+
+-d      Decompresses the specified input file (see -i) writing the results to
+        the specified output file (see -o).  Only files compressed by this
+        program may be decompressed.
+
+-i <filename>   The name of the input file.  There is no valid usage of this
+                program without a specified input file.
+
+-o <filename>   The name of the output file.  If no file is specified, stdout
+                will be used.  NOTE: Sending compressed output to stdout may
+                produce undesirable results.
+
+HISTORY
+-------
+04/01/04  - Initial Release
+
+TODO
+----
+- Add support for adaptive (dynamic) probability models.
+
+AUTHOR
+------
+Michael Dipperstein (mdipper@cs.ucsb.edu)
