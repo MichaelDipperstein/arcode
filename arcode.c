@@ -190,7 +190,7 @@ int ArEncodeFile(char *inFile, char *outFile, char staticModel)
     }
     else
     {
-        /* initialize probability ranges asumming uniform distribution */
+        /* initialize probability ranges assuming uniform distribution */
         InitializeAdaptiveProbabilityRangeList();
     }
 
@@ -394,15 +394,15 @@ void InitializeAdaptiveProbabilityRangeList(void)
 {
     int c;
 
-    cumulativeProb = 0;
     ranges[0] = 0;          /* absolute lower range */
 
-    /* assign upper and lower probability ranges assuming */
+    /* assign upper and lower probability ranges assuming uniformity */
     for (c = 1; c <= UPPER(EOF_CHAR); c++)
     {
         ranges[c] = ranges[c - 1] + 1;
-        cumulativeProb++;
     }
+
+    cumulativeProb = UPPER(EOF_CHAR);
 
 #ifdef BUILD_DEBUG_OUTPUT
     /* dump list of ranges */
@@ -472,7 +472,7 @@ void ApplySymbolRange(int symbol, char staticModel)
             ranges[i] += 1;
         }
 
-        /* half current values if cumulativeProb is too large */
+        /* halve current values if cumulativeProb is too large */
         if (cumulativeProb >= MAX_PROBABILITY)
         {
             cumulativeProb = 0;
@@ -481,15 +481,15 @@ void ApplySymbolRange(int symbol, char staticModel)
             for (i = 1; i <= UPPER(EOF_CHAR); i++)
             {
                 delta = ranges[i] - original;
+                original = ranges[i];
+
                 if (delta <= 2)
                 {
                     /* prevent probability from being 0 */
-                    original = ranges[i];
                     ranges[i] = ranges[i - 1] + 1;
                 }
                 else
                 {
-                    original = ranges[i];
                     ranges[i] = ranges[i - 1] + (delta / 2);
                 }
 
@@ -645,6 +645,12 @@ int ArDecodeFile(char *inFile, char *outFile, char staticModel)
             return FALSE;
         }
     }
+    else
+    {
+        /* initialize ranges for adaptive model */
+        InitializeAdaptiveProbabilityRangeList();
+    }
+
 
     /* read start of code and initialize bounds, and adaptive ranges */
     InitializeDecoder(bfpIn, staticModel);
@@ -756,12 +762,6 @@ int ReadHeader(bit_file_t *bfpIn)
 void InitializeDecoder(bit_file_t *bfpIn, char staticModel)
 {
     int i;
-
-    if (!staticModel)
-    {
-        /* initialize ranges for adaptive model */
-        InitializeAdaptiveProbabilityRangeList();
-    }
 
     code = 0;
 
@@ -907,7 +907,7 @@ void ReadEncodedBits(bit_file_t *bfpIn)
         * Shift out old MSB and shift in new LSB.  Remember that lower has
         * all 0s beyond it's end and upper has all 1s beyond it's end.
         *******************************************************************/
-                lower <<= 1;
+        lower <<= 1;
         upper <<= 1;
         upper |= 1;
         code <<= 1;
