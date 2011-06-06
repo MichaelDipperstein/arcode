@@ -281,7 +281,7 @@ int BuildProbabilityRangeList(FILE *fpIn)
         return FALSE;
     }
 
-        /* start with no symbols counted */
+    /* start with no symbols counted */
     for (c = 0; c < EOF_CHAR; c++)
     {
         countArray[c] = 0;
@@ -720,7 +720,7 @@ int ReadHeader(bit_file_t *bfpIn)
         count = 0;
 
         /* read (PRECISION - 2) bit count */
-       if (BitFileGetBitsInt(bfpIn, &count, (PRECISION - 2),
+        if (BitFileGetBitsInt(bfpIn, &count, (PRECISION - 2),
             sizeof(probability_t)) == EOF)
         {
             /* premature EOF */
@@ -882,7 +882,7 @@ void ReadEncodedBits(bit_file_t *bfpIn)
     {
         if (( upper & MASK_BIT(0)) == (lower & MASK_BIT(0)))
         {
-                        /* MSBs match, allow them to be shifted out*/
+            /* MSBs match, allow them to be shifted out*/
         }
         else if ((lower & MASK_BIT(1)) && !(upper & MASK_BIT(1)))
         {
@@ -891,7 +891,7 @@ void ReadEncodedBits(bit_file_t *bfpIn)
             * match.  It must be the case that lower and upper have MSBs of
             * 01 and 10.  Remove 2nd MSB from lower and upper.
             ***************************************************************/
-                        lower   &= ~(MASK_BIT(0) | MASK_BIT(1));
+            lower   &= ~(MASK_BIT(0) | MASK_BIT(1));
             upper  |= MASK_BIT(1);
             code ^= MASK_BIT(1);
 
