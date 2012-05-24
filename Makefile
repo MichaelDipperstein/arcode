@@ -14,7 +14,7 @@
 ############################################################################
 CC = gcc
 LD = gcc
-CFLAGS = -O2 -Wall -ansi -c
+CFLAGS = -O2 -Wall -Wextra -ansi -pedantic -c
 LDFLAGS = -O2 -o
 
 # libraries

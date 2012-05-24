@@ -125,7 +125,7 @@ int BuildProbabilityRangeList(FILE *fpIn);
 void InitializeAdaptiveProbabilityRangeList(void);
 
 /* routines for decoding */
-void InitializeDecoder(bit_file_t *bfpOut, char staticModel);
+void InitializeDecoder(bit_file_t *bfpOut);
 probability_t GetUnscaledCode(void);
 int GetSymbolFromProbability(probability_t probability);
 void ReadEncodedBits(bit_file_t *bfpIn);
@@ -653,7 +653,7 @@ int ArDecodeFile(char *inFile, char *outFile, char staticModel)
 
 
     /* read start of code and initialize bounds, and adaptive ranges */
-    InitializeDecoder(bfpIn, staticModel);
+    InitializeDecoder(bfpIn);
 
     /* decode one symbol at a time */
     for (;;)
@@ -753,20 +753,19 @@ int ReadHeader(bit_file_t *bfpIn)
 *                max/min values and reads in the most significant encoded
 *                bits.
 *   Parameters : bfpIn - file to read from
-*                staticModel - TRUE if decoding using a staticModel
 *   Effects    : upper, lower, and code are initialized.  The probability
 *                range list will also be initialized if an adaptive model
 *                will be used.
 *   Returned   : TRUE for success, otherwise FALSE
 ****************************************************************************/
-void InitializeDecoder(bit_file_t *bfpIn, char staticModel)
+void InitializeDecoder(bit_file_t *bfpIn)
 {
     int i;
 
     code = 0;
 
     /* read PERCISION MSBs of code one bit at a time */
-    for (i = 0; i < PRECISION; i++)
+    for (i = 0; i < (int)PRECISION; i++)
     {
         code <<= 1;
 
