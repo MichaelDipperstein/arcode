@@ -75,13 +75,21 @@
 /***************************************************************************
 *                            TYPE DEFINITIONS
 ***************************************************************************/
+#define EOF_CHAR    (UCHAR_MAX + 1)
+
 typedef unsigned short probability_t;       /* probability count type */
+
+typedef struct
+{
+    /* probability ranges for each symbol: [ranges[LOWER(c)], ranges[UPPER(c)]) */
+    probability_t ranges[EOF_CHAR + 2];
+    probability_t cumulativeProb;           /* sum for all ranges */
+} ranges_t;
+
 
 /***************************************************************************
 *                                CONSTANTS
 ***************************************************************************/
-#define EOF_CHAR    (UCHAR_MAX + 1)
-
 /* number of bits used to compute running code values */
 #define PRECISION           (8 * sizeof(probability_t))
 
@@ -108,30 +116,26 @@ probability_t code;           /* current MSBs of encode input stream */
 
 unsigned char underflowBits;      /* current underflow bit count */
 
-/* probability ranges for each symbol: [ranges[LOWER(c)], ranges[UPPER(c)]) */
-probability_t ranges[UPPER(EOF_CHAR) + 1];
-probability_t cumulativeProb;   /* cumulative probability  of all ranges */
-
 /***************************************************************************
 *                               PROTOTYPES
 ***************************************************************************/
 /* read write file headers */
-void WriteHeader(bit_file_t *bfpOut);
-int ReadHeader(bit_file_t *bfpIn);
+void WriteHeader(bit_file_t *bfpOut, ranges_t *ranges);
+int ReadHeader(bit_file_t *bfpIn, ranges_t *ranges);
 
 /* applies symbol's ranges to current upper and lower range bounds */
-void ApplySymbolRange(int symbol, char staticModel);
+void ApplySymbolRange(int symbol, ranges_t *ranges, char staticModel);
 
 /* routines for encoding*/
 void WriteEncodedBits(bit_file_t *bfpOut);
 void WriteRemaining(bit_file_t *bfpOut);
-int BuildProbabilityRangeList(FILE *fpIn);
-void InitializeAdaptiveProbabilityRangeList(void);
+int BuildProbabilityRangeList(FILE *fpIn, ranges_t *ranges);
+void InitializeAdaptiveProbabilityRangeList(ranges_t *ranges);
 
 /* routines for decoding */
 void InitializeDecoder(bit_file_t *bfpOut);
-probability_t GetUnscaledCode(void);
-int GetSymbolFromProbability(probability_t probability);
+probability_t GetUnscaledCode(ranges_t *ranges);
+int GetSymbolFromProbability(probability_t probability, ranges_t *Sranges);
 void ReadEncodedBits(bit_file_t *bfpIn);
 
 /***************************************************************************
@@ -153,6 +157,7 @@ int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel)
 {
     int c;
     bit_file_t *bOutFile;               /* encoded output */
+    ranges_t ranges;                    /* probability ranges for all symbols */
 
     /* open input and output files */
     if (NULL == inFile)
@@ -178,7 +183,7 @@ int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel)
     if (staticModel)
     {
         /* count symbols in file and come up with a list of probability ranges */
-        if (!BuildProbabilityRangeList(inFile))
+        if (!BuildProbabilityRangeList(inFile, &ranges))
         {
             fclose(inFile);
             BitFileClose(bOutFile);
@@ -189,12 +194,12 @@ int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel)
         rewind(inFile);
 
         /* write information required to decode file to encoded file */
-        WriteHeader(bOutFile);
+        WriteHeader(bOutFile, &ranges);
     }
     else
     {
         /* initialize probability ranges assuming uniform distribution */
-        InitializeAdaptiveProbabilityRangeList();
+        InitializeAdaptiveProbabilityRangeList(&ranges);
     }
 
     /* initialize coder start with full probability range [0%, 100%) */
@@ -205,11 +210,11 @@ int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel)
     /* encode symbols one at a time */
     while ((c = fgetc(inFile)) != EOF)
     {
-        ApplySymbolRange(c, staticModel);
+        ApplySymbolRange(c, &ranges, staticModel);
         WriteEncodedBits(bOutFile);
     }
 
-    ApplySymbolRange(EOF_CHAR, staticModel);    /* encode an EOF */
+    ApplySymbolRange(EOF_CHAR, &ranges, staticModel);   /* encode an EOF */
     WriteEncodedBits(bOutFile);
 
     WriteRemaining(bOutFile);         /* write out least significant bits */
@@ -223,31 +228,32 @@ int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel)
 *   Description: This routine converts the ranges array containing only
 *                symbol counts to an array containing the upper and lower
 *                probability ranges for each symbol.
-*   Parameters : None
-*   Effects    : ranges array containing symbol counts in the upper field
+*   Parameters : ranges - pointer to structure containing ranges
+*   Effects    : ranges struct containing symbol counts in the upper field
 *                for each symbol is converted to a list of upper and lower
 *                probability bounds for each symbol.
 *   Returned   : None
 ***************************************************************************/
-void SymbolCountToProbabilityRanges(void)
+void SymbolCountToProbabilityRanges(ranges_t *ranges)
 {
     int c;
 
-    ranges[0] = 0;                              /* absolute lower bound is 0 */
-    ranges[UPPER(EOF_CHAR)] = 1;        /* add 1 EOF character */
-    cumulativeProb++;
+    ranges->ranges[0] = 0;                  /* absolute lower bound is 0 */
+    ranges->ranges[UPPER(EOF_CHAR)] = 1;    /* add 1 EOF character */
+    ranges->cumulativeProb++;
 
     /* assign upper and lower probability ranges */
     for (c = 1; c <= UPPER(EOF_CHAR); c++)
     {
-        ranges[c] += ranges[c - 1];
+        ranges->ranges[c] += ranges->ranges[c - 1];
     }
 
     /* dump list of ranges */
     PrintDebug(("Ranges:\n"));
     for (c = 0; c < UPPER(EOF_CHAR); c++)
     {
-        PrintDebug(("%02X\t%d\t%d\n", c, ranges[LOWER(c)], ranges[UPPER(c)]));
+        PrintDebug(("%02X\t%d\t%d\n", c, ranges->ranges[LOWER(c)],
+            ranges->ranges[UPPER(c)]));
     }
 
     return;
@@ -259,11 +265,12 @@ void SymbolCountToProbabilityRanges(void)
 *                list of upper and lower probability ranges for each
 *                symbol.
 *   Parameters : fpIn - file to build range list for
-*   Effects    : ranges array is made to contain probability ranges for
+*                ranges - struct with upper and lower probability ranges
+*   Effects    : ranges struct is made to contain probability ranges for
 *                each symbol.
 *   Returned   : TRUE for success, otherwise FALSE.
 ***************************************************************************/
-int BuildProbabilityRangeList(FILE *fpIn)
+int BuildProbabilityRangeList(FILE *fpIn, ranges_t *ranges)
 {
     int c;
 
@@ -318,16 +325,16 @@ int BuildProbabilityRangeList(FILE *fpIn)
     }
 
     /* copy scaled symbol counts to range list */
-    ranges[0] = 0;
-    cumulativeProb = 0;
+    ranges->ranges[0] = 0;
+    ranges->cumulativeProb = 0;
     for (c = 0; c < EOF_CHAR; c++)
     {
-        ranges[UPPER(c)] = countArray[c];
-        cumulativeProb += countArray[c];
+        ranges->ranges[UPPER(c)] = countArray[c];
+        ranges->cumulativeProb += countArray[c];
     }
 
     /* convert counts to a range of probabilities */
-    SymbolCountToProbabilityRanges();
+    SymbolCountToProbabilityRanges(ranges);
     return TRUE;
 }
 
@@ -338,10 +345,11 @@ int BuildProbabilityRangeList(FILE *fpIn)
 *                decoding algorithm may use these numbers to reconstruct
 *                the probability range list used to encode the file.
 *   Parameters : bfpOut - pointer to open binary file to write to.
+*                ranges - structure containing symbol range counts
 *   Effects    : Symbol values and symbol counts are written to a file.
 *   Returned   : None
 ***************************************************************************/
-void WriteHeader(bit_file_t *bfpOut)
+void WriteHeader(bit_file_t *bfpOut, ranges_t *ranges)
 {
     int c;
     probability_t previous = 0;         /* symbol count so far */
@@ -350,11 +358,11 @@ void WriteHeader(bit_file_t *bfpOut)
 
     for(c = 0; c <= (EOF_CHAR - 1); c++)
     {
-        if (ranges[UPPER(c)] > previous)
+        if (ranges->ranges[UPPER(c)] > previous)
         {
             /* some of these symbols will be encoded */
             BitFilePutChar((char)c, bfpOut);
-            previous = (ranges[UPPER(c)] - previous);   /* symbol count */
+            previous = (ranges->ranges[UPPER(c)] - previous); /* symbol count */
             PrintDebug(("%02X\t%d\n", c, previous));
 
             /* write out PRECISION - 2 bit count */
@@ -362,7 +370,7 @@ void WriteHeader(bit_file_t *bfpOut)
                 sizeof(probability_t));
 
             /* current upper range is previous for the next character */
-            previous = ranges[UPPER(c)];
+            previous = ranges->ranges[UPPER(c)];
         }
     }
 
@@ -380,30 +388,31 @@ void WriteHeader(bit_file_t *bfpOut)
 *                Currently it provides a uniform symbol distribution.
 *                Other distributions might be better suited for known data
 *                types (such as English text).
-*   Parameters : NONE
+*   Parameters : ranges - structure containing the ranges array
 *   Effects    : ranges array is made to contain initial probability ranges
 *                for each symbol.
 *   Returned   : NONE
 ***************************************************************************/
-void InitializeAdaptiveProbabilityRangeList(void)
+void InitializeAdaptiveProbabilityRangeList(ranges_t *ranges)
 {
     int c;
 
-    ranges[0] = 0;          /* absolute lower range */
+    ranges->ranges[0] = 0;      /* absolute lower range */
 
     /* assign upper and lower probability ranges assuming uniformity */
     for (c = 1; c <= UPPER(EOF_CHAR); c++)
     {
-        ranges[c] = ranges[c - 1] + 1;
+        ranges->ranges[c] = ranges->ranges[c - 1] + 1;
     }
 
-    cumulativeProb = UPPER(EOF_CHAR);
+    ranges->cumulativeProb = UPPER(EOF_CHAR);
 
     /* dump list of ranges */
     PrintDebug(("Ranges:\n"));
     for (c = 0; c < UPPER(EOF_CHAR); c++)
     {
-        PrintDebug(("%02X\t%d\t%d\n", c, ranges[LOWER(c)], ranges[UPPER(c)]));
+        PrintDebug(("%02X\t%d\t%d\n", c, ranges->ranges[LOWER(c)],
+            ranges->ranges[UPPER(c)]));
     }
 
     return;
@@ -418,6 +427,7 @@ void InitializeAdaptiveProbabilityRangeList(void)
 *                list will be updated after the effect of the symbol is
 *                applied.
 *   Parameters : symbol - The symbol to be added to the current code range
+*                ranges - structure containing upper and lower symbol ranges
 *                staticModel - TRUE if encoding/decoding with a static
 *                              model.
 *   Effects    : The current upper and lower range bounds are adjusted to
@@ -426,7 +436,7 @@ void InitializeAdaptiveProbabilityRangeList(void)
 *                probability range list will be updated.
 *   Returned   : None
 ***************************************************************************/
-void ApplySymbolRange(int symbol, char staticModel)
+void ApplySymbolRange(int symbol, ranges_t *ranges, char staticModel)
 {
     unsigned long range;        /* must be able to hold max upper + 1 */
     unsigned long rescaled;     /* range rescaled for range of new symbol */
@@ -444,15 +454,15 @@ void ApplySymbolRange(int symbol, char staticModel)
     range = (unsigned long)(upper - lower) + 1;         /* current range */
 
     /* scale upper range of the symbol being coded */
-    rescaled = (unsigned long)ranges[UPPER(symbol)] * range;
-    rescaled /= (unsigned long)cumulativeProb;
+    rescaled = (unsigned long)(ranges->ranges[UPPER(symbol)]) * range;
+    rescaled /= (unsigned long)(ranges->cumulativeProb);
 
     /* new upper = old lower + rescaled new upper - 1*/
     upper = lower + (probability_t)rescaled - 1;
 
     /* scale lower range of the symbol being coded */
-    rescaled = (unsigned long)ranges[LOWER(symbol)] * range;
-    rescaled /= (unsigned long)cumulativeProb;
+    rescaled = (unsigned long)(ranges->ranges[LOWER(symbol)]) * range;
+    rescaled /= (unsigned long)(ranges->cumulativeProb);
 
     /* new lower = old lower + rescaled new upper */
     lower = lower + (probability_t)rescaled;
@@ -460,34 +470,36 @@ void ApplySymbolRange(int symbol, char staticModel)
     if (!staticModel)
     {
         /* add new symbol to model */
-        cumulativeProb++;
+        ranges->cumulativeProb++;
+
         for (i = UPPER(symbol); i <= UPPER(EOF_CHAR); i++)
         {
-            ranges[i] += 1;
+            ranges->ranges[i] += 1;
         }
 
         /* halve current values if cumulativeProb is too large */
-        if (cumulativeProb >= MAX_PROBABILITY)
+        if (ranges->cumulativeProb >= MAX_PROBABILITY)
         {
-            cumulativeProb = 0;
+            ranges->cumulativeProb = 0;
             original = 0;
 
             for (i = 1; i <= UPPER(EOF_CHAR); i++)
             {
-                delta = ranges[i] - original;
-                original = ranges[i];
+                delta = ranges->ranges[i] - original;
+                original = ranges->ranges[i];
 
                 if (delta <= 2)
                 {
                     /* prevent probability from being 0 */
-                    ranges[i] = ranges[i - 1] + 1;
+                    ranges->ranges[i] = ranges->ranges[i - 1] + 1;
                 }
                 else
                 {
-                    ranges[i] = ranges[i - 1] + (delta / 2);
+                    ranges->ranges[i] = ranges->ranges[i - 1] + (delta / 2);
                 }
 
-                cumulativeProb += (ranges[i] - ranges[i - 1]);
+                ranges->cumulativeProb +=
+                    (ranges->ranges[i] - ranges->ranges[i - 1]);
             }
         }
     }
@@ -600,6 +612,7 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
     int c;
     probability_t unscaled;
     bit_file_t *bInFile;
+    ranges_t ranges;
 
     /* handle file pointers */
     if (NULL == outFile)
@@ -624,7 +637,7 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
     if (staticModel)
     {
         /* build probability ranges from header in file */
-        if (ReadHeader(bInFile) == FALSE)
+        if (ReadHeader(bInFile, &ranges) == FALSE)
         {
             BitFileClose(bInFile);
             fclose(outFile);
@@ -634,7 +647,7 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
     else
     {
         /* initialize ranges for adaptive model */
-        InitializeAdaptiveProbabilityRangeList();
+        InitializeAdaptiveProbabilityRangeList(&ranges);
     }
 
 
@@ -645,10 +658,10 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
     for (;;)
     {
         /* get the unscaled probability of the current symbol */
-        unscaled = GetUnscaledCode();
+        unscaled = GetUnscaledCode(&ranges);
 
         /* figure out which symbol has the above probability */
-        if((c = GetSymbolFromProbability(unscaled)) == -1)
+        if((c = GetSymbolFromProbability(unscaled, &ranges)) == -1)
         {
             /* error: unknown symbol */
             break;
@@ -663,7 +676,7 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
         fputc((char)c, outFile);
 
         /* factor out symbol */
-        ApplySymbolRange(c, staticModel);
+        ApplySymbolRange(c, &ranges, staticModel);
         ReadEncodedBits(bInFile);
     }
 
@@ -679,20 +692,21 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
 *                probability range list matching the list that was used to
 *                encode the file.
 *   Parameters : bfpIn - file to read from
+*                ranges - structure containing probability range list
 *   Effects    : Probability range list is built.
 *   Returned   : TRUE for success, otherwise FALSE
 ****************************************************************************/
-int ReadHeader(bit_file_t *bfpIn)
+int ReadHeader(bit_file_t *bfpIn, ranges_t *ranges)
 {
     int c;
     probability_t count;
 
     PrintDebug(("HEADER:\n"));
-    cumulativeProb = 0;
+    ranges->cumulativeProb = 0;
 
     for (c = 0; c <= UPPER(EOF_CHAR); c++)
     {
-        ranges[UPPER(c)] = 0;
+        ranges->ranges[UPPER(c)] = 0;
     }
 
     /* read [character, probability] sets */
@@ -718,12 +732,12 @@ int ReadHeader(bit_file_t *bfpIn)
             break;
         }
 
-        ranges[UPPER(c)] = count;
-        cumulativeProb += count;
+        ranges->ranges[UPPER(c)] = count;
+        ranges->cumulativeProb += count;
     }
 
     /* convert counts to range list */
-    SymbolCountToProbabilityRanges();
+    SymbolCountToProbabilityRanges(ranges);
     return TRUE;
 }
 
@@ -766,11 +780,11 @@ void InitializeDecoder(bit_file_t *bfpIn)
 *   Description: This function undoes the scaling that ApplySymbolRange
 *                performed before bits were shifted out.  The value returned
 *                is the probability of the encoded symbol.
-*   Parameters : None
+*   Parameters : ranges - structure containing the cumulative probability
 *   Effects    : None
 *   Returned   : The probability of the current symbol
 ****************************************************************************/
-probability_t GetUnscaledCode(void)
+probability_t GetUnscaledCode(ranges_t *ranges)
 {
     unsigned long range;        /* must be able to hold max upper + 1 */
     unsigned long unscaled;
@@ -779,7 +793,7 @@ probability_t GetUnscaledCode(void)
 
     /* reverse the scaling operations from ApplySymbolRange */
     unscaled = (unsigned long)(code - lower) + 1;
-    unscaled = unscaled * (unsigned long)cumulativeProb - 1;
+    unscaled = unscaled * (unsigned long)(ranges->cumulativeProb) - 1;
     unscaled /= range;
 
     return ((probability_t)unscaled);
@@ -791,10 +805,11 @@ probability_t GetUnscaledCode(void)
 *                whose range includes that probability.  Symbol is found
 *                binary search on probability ranges.
 *   Parameters : probability - probability of symbol.
+*                ranges - structure containing probability ranages
 *   Effects    : None
 *   Returned   : -1 for failure, otherwise encoded symbol
 ****************************************************************************/
-int GetSymbolFromProbability(probability_t probability)
+int GetSymbolFromProbability(probability_t probability, ranges_t *ranges)
 {
     int first, last, middle;    /* indicies for binary search */
 
@@ -805,7 +820,7 @@ int GetSymbolFromProbability(probability_t probability)
     /* binary search */
     while (last >= first)
     {
-        if (probability < ranges[LOWER(middle)])
+        if (probability < ranges->ranges[LOWER(middle)])
         {
             /* lower bound is higher than probability */
             last = middle - 1;
@@ -813,7 +828,7 @@ int GetSymbolFromProbability(probability_t probability)
             continue;
         }
 
-        if (probability >= ranges[UPPER(middle)])
+        if (probability >= ranges->ranges[UPPER(middle)])
         {
             /* upper bound is lower than probability */
             first = middle + 1;
@@ -827,7 +842,7 @@ int GetSymbolFromProbability(probability_t probability)
 
     /* error: none of the ranges include the probability */
     fprintf(stderr, "Unknown Symbol: %d (max: %d)\n", probability,
-        ranges[UPPER(EOF_CHAR)]);
+        ranges->ranges[UPPER(EOF_CHAR)]);
     return -1;
 }
 
