@@ -1,15 +1,9 @@
 ############################################################################
 # Makefile for arithmetic encode/decode library and sample program
-#
-#   $Id: Makefile,v 1.2 2007/09/08 15:48:14 michael Exp $
-#   $Log: Makefile,v $
-#   Revision 1.2  2007/09/08 15:48:14  michael
-#   Replace getopt with optlist.
-#   Changes required for LGPL v3.
-#
-#   Revision 1.1.1.1  2004/04/04 14:54:13  michael
-#   Initial version
-#
+# arguements:
+#	No argument			Build everythin
+#	DEBUG=1				Build with debugging output and symbols
+#	clean				Delete all compiled/linked output
 #
 ############################################################################
 CC = gcc
@@ -36,6 +30,8 @@ endif
 # Handle debug/no debug
 ifneq ($(DEBUG), 1)
 	CFLAGS += -DNDEBUG
+else
+	CFLAGS += -g
 endif
 
 all:		sample$(EXE)

@@ -58,11 +58,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <assert.h>
 #include "arcode.h"
 #include "bitfile.h"
 
-/* compile-time options */
-#undef BUILD_DEBUG_OUTPUT                   /* debugging output */
+#ifdef NDEBUG
+#define PrintDebug(ARGS) do {} while (0)
+#else
+#define PrintDebug(ARGS) printf ARGS
+#endif
 
 #if !(USHRT_MAX < ULONG_MAX)
 #error "Implementation requires USHRT_MAX < ULONG_MAX"
@@ -239,13 +243,12 @@ void SymbolCountToProbabilityRanges(void)
         ranges[c] += ranges[c - 1];
     }
 
-#ifdef BUILD_DEBUG_OUTPUT
     /* dump list of ranges */
+    PrintDebug(("Ranges:\n"));
     for (c = 0; c < UPPER(EOF_CHAR); c++)
     {
-        printf("%02X\t%d\t%d\n", c, ranges[LOWER(c)], ranges[UPPER(c)]);
+        PrintDebug(("%02X\t%d\t%d\n", c, ranges[LOWER(c)], ranges[UPPER(c)]));
     }
-#endif
 
     return;
 }
@@ -343,9 +346,7 @@ void WriteHeader(bit_file_t *bfpOut)
     int c;
     probability_t previous = 0;         /* symbol count so far */
 
-#if BUILD_DEBUG_OUTPUT
-    printf("HEADER:\n");
-#endif
+    PrintDebug(("HEADER:\n"));
 
     for(c = 0; c <= (EOF_CHAR - 1); c++)
     {
@@ -354,10 +355,7 @@ void WriteHeader(bit_file_t *bfpOut)
             /* some of these symbols will be encoded */
             BitFilePutChar((char)c, bfpOut);
             previous = (ranges[UPPER(c)] - previous);   /* symbol count */
-
-#if BUILD_DEBUG_OUTPUT
-            printf("%02X\t%d\n", c, previous);
-#endif
+            PrintDebug(("%02X\t%d\n", c, previous));
 
             /* write out PRECISION - 2 bit count */
             BitFilePutBitsInt(bfpOut, &previous, (PRECISION - 2),
@@ -401,13 +399,12 @@ void InitializeAdaptiveProbabilityRangeList(void)
 
     cumulativeProb = UPPER(EOF_CHAR);
 
-#ifdef BUILD_DEBUG_OUTPUT
     /* dump list of ranges */
+    PrintDebug(("Ranges:\n"));
     for (c = 0; c < UPPER(EOF_CHAR); c++)
     {
-        printf("%02X\t%d\t%d\n", c, ranges[LOWER(c)], ranges[UPPER(c)]);
+        PrintDebug(("%02X\t%d\t%d\n", c, ranges[LOWER(c)], ranges[UPPER(c)]));
     }
-#endif
 
     return;
 }
@@ -495,13 +492,7 @@ void ApplySymbolRange(int symbol, char staticModel)
         }
     }
 
-#ifdef BUILD_DEBUG_OUTPUT
-    if (lower > upper)
-    {
-        /* compile this in when testing new models. */
-        fprintf(stderr, "Panic: lower (%X)> upper (%X)\n", lower, upper);
-    }
-#endif
+    assert(lower <= upper);
 }
 
 /***************************************************************************
@@ -696,10 +687,7 @@ int ReadHeader(bit_file_t *bfpIn)
     int c;
     probability_t count;
 
-#if BUILD_DEBUG_OUTPUT
-    printf("HEADER:\n");
-#endif
-
+    PrintDebug(("HEADER:\n"));
     cumulativeProb = 0;
 
     for (c = 0; c <= UPPER(EOF_CHAR); c++)
@@ -722,9 +710,7 @@ int ReadHeader(bit_file_t *bfpIn)
             return FALSE;
         }
 
-#if BUILD_DEBUG_OUTPUT
-        printf("%02X\t%d\n", c, count);
-#endif
+        PrintDebug(("%02X\t%d\n", c, count));
 
         if (count == 0)
         {
