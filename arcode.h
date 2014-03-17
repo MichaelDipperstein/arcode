@@ -61,9 +61,9 @@
 *                               PROTOTYPES
 ***************************************************************************/
  /* encode inFile */
-int ArEncodeFile(char *inFile, char *outFile, char staticModel);
+int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel);
 
 /* decode inFile*/
-int ArDecodeFile(char *inFile, char *outFile, char staticModel);
+int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel);
 
 #endif  /* ndef _ARCODE_H_ */

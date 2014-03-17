@@ -17,7 +17,7 @@ LD = gcc
 CFLAGS = -O2 -Wall -Wextra -ansi -pedantic -c
 LDFLAGS = -O2 -o
 
-# libraries
+# Libraries
 LIBS = -L. -larcode -loptlist
 
 # Treat NT and non-NT windows the same
@@ -33,12 +33,17 @@ else	#assume Linux/Unix
 	DEL = rm
 endif
 
+# Handle debug/no debug
+ifneq ($(DEBUG), 1)
+	CFLAGS += -DNDEBUG
+endif
+
 all:		sample$(EXE)
 
 sample$(EXE):	sample.o libarcode.a liboptlist.a
 		$(LD) $< $(LIBS) $(LDFLAGS) $@
 
-sample.o:	sample.c bitfile.h arcode.h optlist.h
+sample.o:	sample.c arcode.h optlist.h
 		$(CC) $(CFLAGS) $<
 
 libarcode.a:	arcode.o bitfile.o

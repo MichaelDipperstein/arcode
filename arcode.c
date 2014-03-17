@@ -91,7 +91,7 @@ typedef unsigned short probability_t;       /* probability count type */
 #define MASK_BIT(x) (probability_t)(1 << (PRECISION - (1 + (x))))
 
 /* indices for a symbol's lower and upper cumulative probability ranges */
-#define LOWER(c)        (c)
+#define LOWER(c)    (c)
 #define UPPER(c)    ((c) + 1)
 
 /***************************************************************************
@@ -139,54 +139,53 @@ void ReadEncodedBits(bit_file_t *bfpIn);
 *   Description: This routine generates a list of arithmetic code ranges for
 *                a file and then uses them to write out an encoded version
 *                of that file.
-*   Parameters : inFile - Name of file to encode
-*                outFile - Name of file to write encoded output to
+*   Parameters : inFile - FILE stream to encode
+*                outFile - FILE stream to write encoded output to
 *                staticModel - TRUE if encoding with a static model
 *   Effects    : File is arithmetically encoded
 *   Returned   : TRUE for success, otherwise FALSE.
 ***************************************************************************/
-int ArEncodeFile(char *inFile, char *outFile, char staticModel)
+int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel)
 {
     int c;
-    FILE *fpIn;                         /* uncoded input */
-    bit_file_t *bfpOut;                 /* encoded output */
+    bit_file_t *bOutFile;               /* encoded output */
 
     /* open input and output files */
-    if ((fpIn = fopen(inFile, "rb")) == NULL)
+    if (NULL == inFile)
     {
-        perror(inFile);
-        return FALSE;
+        inFile = stdin;
     }
 
     if (outFile == NULL)
     {
-        bfpOut = MakeBitFile(stdout, BF_WRITE);
+        bOutFile = MakeBitFile(stdout, BF_WRITE);
     }
     else
     {
-        if ((bfpOut = BitFileOpen(outFile, BF_WRITE)) == NULL)
-        {
-            fclose(fpIn);
-            perror(outFile);
-            return FALSE;
-        }
+        bOutFile = MakeBitFile(outFile, BF_WRITE);
+    }
+
+    if (NULL == bOutFile)
+    {
+        fprintf(stderr, "Error: Creating binary output file\n");
+        return FALSE;
     }
 
     if (staticModel)
     {
         /* count symbols in file and come up with a list of probability ranges */
-        if (!BuildProbabilityRangeList(fpIn))
+        if (!BuildProbabilityRangeList(inFile))
         {
-            fclose(fpIn);
-            BitFileClose(bfpOut);
+            fclose(inFile);
+            BitFileClose(bOutFile);
             fprintf(stderr, "Error determining frequency ranges.\n");
             return FALSE;
         }
 
-        rewind(fpIn);
+        rewind(inFile);
 
         /* write information required to decode file to encoded file */
-        WriteHeader(bfpOut);
+        WriteHeader(bOutFile);
     }
     else
     {
@@ -200,19 +199,17 @@ int ArEncodeFile(char *inFile, char *outFile, char staticModel)
     underflowBits = 0;
 
     /* encode symbols one at a time */
-    while ((c = fgetc(fpIn)) != EOF)
+    while ((c = fgetc(inFile)) != EOF)
     {
         ApplySymbolRange(c, staticModel);
-        WriteEncodedBits(bfpOut);
+        WriteEncodedBits(bOutFile);
     }
 
-    fclose(fpIn);
-
     ApplySymbolRange(EOF_CHAR, staticModel);    /* encode an EOF */
-    WriteEncodedBits(bfpOut);
+    WriteEncodedBits(bOutFile);
 
-    WriteRemaining(bfpOut);         /* write out least significant bits */
-    BitFileClose(bfpOut);
+    WriteRemaining(bOutFile);         /* write out least significant bits */
+    outFile = BitFileToFILE(bOutFile);          /* make file normal again */
 
     return TRUE;
 }
@@ -601,47 +598,45 @@ void WriteRemaining(bit_file_t *bfpOut)
 *   Description: This routine opens an arithmetically encoded file, reads
 *                it's header, and builds a list of probability ranges which
 *                it then uses to decode the rest of the file.
-*   Parameters : inFile - Name of file to decode
-*                outFile - Name of file to write decoded output to
+*   Parameters : inFile - FILE stream to decode
+*                outFile - FILE stream to write decoded output to
 *                staticModel - TRUE if decoding with a static model
 *   Effects    : Encoded file is decoded
 *   Returned   : TRUE for success, otherwise FALSE.
 ***************************************************************************/
-int ArDecodeFile(char *inFile, char *outFile, char staticModel)
+int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
 {
     int c;
     probability_t unscaled;
-    bit_file_t *bfpIn;
-    FILE *fpOut;
+    bit_file_t *bInFile;
 
-    /* open input and output files */
-    if ((bfpIn = BitFileOpen(inFile, BF_READ)) == NULL)
+    /* handle file pointers */
+    if (NULL == outFile)
     {
-        perror(inFile);
+        outFile = stdout;
+    }
+
+    if (NULL == inFile)
+    {
+        fprintf(stderr, "Error: Invalid input file\n");
         return FALSE;
     }
 
-    if (outFile == NULL)
+    bInFile = MakeBitFile(inFile, BF_READ);
+
+    if (NULL == bInFile)
     {
-        fpOut = stdout;
-    }
-    else
-    {
-        if ((fpOut = fopen(outFile, "wb")) == NULL)
-        {
-            BitFileClose(bfpIn);
-            perror(outFile);
-            return FALSE;
-        }
+        fprintf(stderr, "Error: Unable to create binary input file\n");
+        return FALSE;
     }
 
     if (staticModel)
     {
         /* build probability ranges from header in file */
-        if (ReadHeader(bfpIn) == FALSE)
+        if (ReadHeader(bInFile) == FALSE)
         {
-            BitFileClose(bfpIn);
-            fclose(fpOut);
+            BitFileClose(bInFile);
+            fclose(outFile);
             return FALSE;
         }
     }
@@ -653,7 +648,7 @@ int ArDecodeFile(char *inFile, char *outFile, char staticModel)
 
 
     /* read start of code and initialize bounds, and adaptive ranges */
-    InitializeDecoder(bfpIn);
+    InitializeDecoder(bInFile);
 
     /* decode one symbol at a time */
     for (;;)
@@ -674,15 +669,14 @@ int ArDecodeFile(char *inFile, char *outFile, char staticModel)
             break;
         }
 
-        fputc((char)c, fpOut);
+        fputc((char)c, outFile);
 
         /* factor out symbol */
         ApplySymbolRange(c, staticModel);
-        ReadEncodedBits(bfpIn);
+        ReadEncodedBits(bInFile);
     }
 
-    fclose(fpOut);
-    BitFileClose(bfpIn);
+    inFile = BitFileToFILE(bInFile);        /* make file normal again */
 
     return TRUE;
 }

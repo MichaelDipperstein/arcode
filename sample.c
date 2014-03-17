@@ -78,7 +78,7 @@ char *RemovePath(char *fullPath);
 int main(int argc, char *argv[])
 {
     option_t *optList, *thisOpt;
-    char *inFile, *outFile; /* name of input & output files */
+    FILE *inFile, *outFile; /* input & output files */
     char encode;            /* encode/decode */
     char staticModel;       /* static/adaptive model*/
 
@@ -112,62 +112,58 @@ int main(int argc, char *argv[])
                 if (inFile != NULL)
                 {
                     fprintf(stderr, "Multiple input files not allowed.\n");
-                    free(inFile);
+                    fclose(inFile);
 
                     if (outFile != NULL)
                     {
-                        free(outFile);
+                        fclose(outFile);
                     }
 
                     FreeOptList(optList);
                     exit(EXIT_FAILURE);
                 }
-                else if ((inFile =
-                    (char *)malloc(strlen(thisOpt->argument) + 1)) == NULL)
+                else if ((inFile = fopen(thisOpt->argument, "rb")) == NULL)
                 {
-                    perror("Memory allocation");
+                    perror("Opening Input File");
 
                     if (outFile != NULL)
                     {
-                        free(outFile);
+                        fclose(outFile);
                     }
 
                     FreeOptList(optList);
                     exit(EXIT_FAILURE);
                 }
 
-                strcpy(inFile, thisOpt->argument);
                 break;
 
             case 'o':       /* output file name */
                 if (outFile != NULL)
                 {
                     fprintf(stderr, "Multiple output files not allowed.\n");
-                    free(outFile);
+                    fclose(outFile);
 
                     if (inFile != NULL)
                     {
-                        free(inFile);
+                        fclose(inFile);
                     }
 
                     FreeOptList(optList);
                     exit(EXIT_FAILURE);
                 }
-                else if ((outFile =
-                    (char *)malloc(strlen(thisOpt->argument) + 1)) == NULL)
+                else if ((outFile = fopen(thisOpt->argument, "wb")) == NULL)
                 {
-                    perror("Memory allocation");
+                    perror("Opening Output File");
 
                     if (inFile != NULL)
                     {
-                        free(inFile);
+                        fclose(inFile);
                     }
 
                     FreeOptList(optList);
                     exit(EXIT_FAILURE);
                 }
 
-                strcpy(outFile, thisOpt->argument);
                 break;
 
             case 'h':
@@ -192,26 +188,26 @@ int main(int argc, char *argv[])
     }
 
     /* validate command line */
-    if (inFile == NULL)
+    if (NULL == inFile)
     {
         fprintf(stderr, "Input file must be provided\n");
         fprintf(stderr, "Enter \"%s -?\" for help.\n", RemovePath(argv[0]));
 
         if (outFile != NULL)
         {
-            free(outFile);
+            fclose(outFile);
         }
 
         exit (EXIT_FAILURE);
     }
-    else if (outFile == NULL)
+    else if (NULL == outFile)
     {
         fprintf(stderr, "Output file must be provided\n");
         fprintf(stderr, "Enter \"%s -?\" for help.\n", RemovePath(argv[0]));
 
         if (inFile != NULL)
         {
-            free(inFile);
+            fclose(inFile);
         }
 
         exit (EXIT_FAILURE);
@@ -227,8 +223,8 @@ int main(int argc, char *argv[])
         ArDecodeFile(inFile, outFile, staticModel);
     }
 
-    free(inFile);
-    free(outFile);
+    fclose(inFile);
+    fclose(outFile);
     return EXIT_SUCCESS;
 }
 
