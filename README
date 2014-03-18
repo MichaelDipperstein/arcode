@@ -61,6 +61,36 @@ options:
                 will be used.  NOTE: Sending compressed output to stdout may
                 produce undesirable results.
 
+LIBRARY API
+-----------
+Encoding Data:
+int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel);
+inFile
+    The file stream to be encoded.  It must be opened and it must also be
+    rewindable if a static model is used.  If NULL, stdin will be used.
+outFile
+    The file stream receiving the encoded results.  It must be opened as binary.
+    If NULL, stdout will be used.
+staticModel
+    Set to Non-zero if a static model is to be used, otherwise a dynamic model
+    will be used.
+Return Value
+    Non-zero for success, zero for failure.
+
+Decoding Data:
+int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel);
+inFile
+    The file stream containing the encoded input.  It must be opened as binary.
+    If NULL, stdin will be used.
+outFile
+    The file stream receiving the decoded results.  It must be opened as binary.
+    If NULL, stdout will be used.
+staticModel
+    Set to Non-zero if a static model is to be used, otherwise a dynamic model
+    will be used.
+Return Value
+    Non-zero for success, zero for failure.
+
 HISTORY
 -------
 04/01/04  - Initial Release
@@ -71,7 +101,9 @@ HISTORY
             writing the header.
             - This makes the code a little cleaner, but the new header is not
               compatible with the old header.
-
+03/17/14  - Changed the API so that encode and decode routines accept opened
+            file streams instead of file names.
+          - Eliminated all global variables.
 
 TODO
 ----

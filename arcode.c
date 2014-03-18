@@ -200,7 +200,7 @@ int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel)
 *   Description: This routine converts the ranges array containing only
 *                symbol counts to an array containing the upper and lower
 *                probability ranges for each symbol.
-*   Parameters : ranges - pointer to structure containing ranges
+*   Parameters : stats - structure containing data used to encode symbols
 *   Effects    : ranges struct containing symbol counts in the upper field
 *                for each symbol is converted to a list of upper and lower
 *                probability bounds for each symbol.
@@ -237,8 +237,8 @@ void SymbolCountToProbabilityRanges(stats_t *stats)
 *                list of upper and lower probability ranges for each
 *                symbol.
 *   Parameters : fpIn - file to build range list for
-*                ranges - struct with upper and lower probability ranges
-*   Effects    : ranges struct is made to contain probability ranges for
+*                stats - structure containing data used to encode symbols
+*   Effects    : stats struct is made to contain probability ranges for
 *                each symbol.
 *   Returned   : TRUE for success, otherwise FALSE.
 ***************************************************************************/
@@ -317,7 +317,7 @@ int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats)
 *                decoding algorithm may use these numbers to reconstruct
 *                the probability range list used to encode the file.
 *   Parameters : bfpOut - pointer to open binary file to write to.
-*                ranges - structure containing symbol range counts
+*                stats - structure containing data used to encode symbols
 *   Effects    : Symbol values and symbol counts are written to a file.
 *   Returned   : None
 ***************************************************************************/
@@ -360,7 +360,7 @@ void WriteHeader(bit_file_t *bfpOut, stats_t *stats)
 *                Currently it provides a uniform symbol distribution.
 *                Other distributions might be better suited for known data
 *                types (such as English text).
-*   Parameters : ranges - structure containing the ranges array
+*   Parameters : stats - structure containing data used to encode symbols
 *   Effects    : ranges array is made to contain initial probability ranges
 *                for each symbol.
 *   Returned   : NONE
@@ -399,7 +399,7 @@ void InitializeAdaptiveProbabilityRangeList(stats_t *stats)
 *                list will be updated after the effect of the symbol is
 *                applied.
 *   Parameters : symbol - The symbol to be added to the current code range
-*                ranges - structure containing upper and lower symbol ranges
+*                stats - structure containing data used to encode symbols
 *                staticModel - TRUE if encoding/decoding with a static
 *                              model.
 *   Effects    : The current upper and lower range bounds are adjusted to
@@ -780,7 +780,7 @@ probability_t GetUnscaledCode(stats_t *stats)
 *                whose range includes that probability.  Symbol is found
 *                binary search on probability ranges.
 *   Parameters : probability - probability of symbol.
-*                ranges - structure containing probability ranages
+*                stats - structure containing data used to encode symbols
 *   Effects    : None
 *   Returned   : -1 for failure, otherwise encoded symbol
 ****************************************************************************/
