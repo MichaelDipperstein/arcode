@@ -338,7 +338,7 @@ void WriteHeader(bit_file_t *bfpOut, stats_t *stats)
             PrintDebug(("%02X\t%d\n", c, previous));
 
             /* write out PRECISION - 2 bit count */
-            BitFilePutBitsInt(bfpOut, &previous, (PRECISION - 2),
+            BitFilePutBitsNum(bfpOut, &previous, (PRECISION - 2),
                 sizeof(probability_t));
 
             /* current upper range is previous for the next character */
@@ -690,7 +690,7 @@ int ReadHeader(bit_file_t *bfpIn, stats_t *stats)
         count = 0;
 
         /* read (PRECISION - 2) bit count */
-        if (BitFileGetBitsInt(bfpIn, &count, (PRECISION - 2),
+        if (BitFileGetBitsNum(bfpIn, &count, (PRECISION - 2),
             sizeof(probability_t)) == EOF)
         {
             /* premature EOF */
