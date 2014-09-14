@@ -9,7 +9,8 @@
 ****************************************************************************
 *
 * Arcode: An ANSI C Arithmetic Encoding/Decoding Routines
-* Copyright (C) 2004, 2006-2007 by Michael Dipperstein (mdipper@cs.ucsb.edu)
+* Copyright (C) 2004, 2006-2007, 2014 by
+* Michael Dipperstein (mdipper@alumni.engr.ucsb.edu)
 *
 * This file is part of the arcode library.
 *
