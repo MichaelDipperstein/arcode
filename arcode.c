@@ -98,7 +98,7 @@ void WriteHeader(bit_file_t *bfpOut, stats_t *stats);
 int ReadHeader(bit_file_t *bfpIn, stats_t *stats);
 
 /* applies symbol's ranges to current upper and lower range bounds */
-void ApplySymbolRange(int symbol, stats_t *stats, char staticModel);
+void ApplySymbolRange(int symbol, stats_t *stats, char model);
 
 /* routines for encoding*/
 void WriteEncodedBits(bit_file_t *bfpOut, stats_t *stats);
@@ -123,11 +123,11 @@ void ReadEncodedBits(bit_file_t *bfpIn, stats_t *stats);
 *                of that file.
 *   Parameters : inFile - FILE stream to encode
 *                outFile - FILE stream to write encoded output to
-*                staticModel - TRUE if encoding with a static model
+*                model - model_t type value for adaptive or static model
 *   Effects    : File is arithmetically encoded
-*   Returned   : TRUE for success, otherwise FALSE.
+*   Returned   : 0 for success, otherwise non-zero.
 ***************************************************************************/
-int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel)
+int ArEncodeFile(FILE *inFile, FILE *outFile, model_t model)
 {
     int c;
     bit_file_t *bOutFile;               /* encoded output */
@@ -151,18 +151,18 @@ int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel)
     if (NULL == bOutFile)
     {
         fprintf(stderr, "Error: Creating binary output file\n");
-        return FALSE;
+        return -1;
     }
 
-    if (staticModel)
+    if (MODEL_STATIC == model)
     {
         /* create list of probability ranges by counting symbols in file */
-        if (!BuildProbabilityRangeList(inFile, &stats))
+        if (0 != BuildProbabilityRangeList(inFile, &stats))
         {
             fclose(inFile);
             BitFileClose(bOutFile);
             fprintf(stderr, "Error determining frequency ranges.\n");
-            return FALSE;
+            return -1;
         }
 
         rewind(inFile);
@@ -184,16 +184,16 @@ int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel)
     /* encode symbols one at a time */
     while ((c = fgetc(inFile)) != EOF)
     {
-        ApplySymbolRange(c, &stats, staticModel);
+        ApplySymbolRange(c, &stats, model);
         WriteEncodedBits(bOutFile, &stats);
     }
 
-    ApplySymbolRange(EOF_CHAR, &stats, staticModel);   /* encode an EOF */
+    ApplySymbolRange(EOF_CHAR, &stats, model);   /* encode an EOF */
     WriteEncodedBits(bOutFile, &stats);
     WriteRemaining(bOutFile, &stats);           /* write out lsbs */
     outFile = BitFileToFILE(bOutFile);          /* make file normal again */
 
-    return TRUE;
+    return 0;
 }
 
 /***************************************************************************
@@ -241,7 +241,7 @@ void SymbolCountToProbabilityRanges(stats_t *stats)
 *                stats - structure containing data used to encode symbols
 *   Effects    : stats struct is made to contain probability ranges for
 *                each symbol.
-*   Returned   : TRUE for success, otherwise FALSE.
+*   Returned   : 0 for success, otherwise non-zero.
 ***************************************************************************/
 int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats)
 {
@@ -258,7 +258,7 @@ int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats)
 
     if (fpIn == NULL)
     {
-        return FALSE;
+        return -1;
     }
 
     /* start with no symbols counted */
@@ -272,7 +272,7 @@ int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats)
         if (totalCount == ULONG_MAX)
         {
             fprintf(stderr, "Error: file too large\n");
-            return FALSE;
+            return -1;
         }
 
         countArray[c]++;
@@ -308,7 +308,7 @@ int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats)
 
     /* convert counts to a range of probabilities */
     SymbolCountToProbabilityRanges(stats);
-    return TRUE;
+    return 0;
 }
 
 /***************************************************************************
@@ -401,7 +401,7 @@ void InitializeAdaptiveProbabilityRangeList(stats_t *stats)
 *                applied.
 *   Parameters : symbol - The symbol to be added to the current code range
 *                stats - structure containing data used to encode symbols
-*                staticModel - TRUE if encoding/decoding with a static
+*                model - TRUE if encoding/decoding with a static
 *                              model.
 *   Effects    : The current upper and lower range bounds are adjusted to
 *                include the range effects of adding another symbol to the
@@ -409,7 +409,7 @@ void InitializeAdaptiveProbabilityRangeList(stats_t *stats)
 *                probability range list will be updated.
 *   Returned   : None
 ***************************************************************************/
-void ApplySymbolRange(int symbol, stats_t *stats, char staticModel)
+void ApplySymbolRange(int symbol, stats_t *stats, char model)
 {
     unsigned long range;        /* must be able to hold max upper + 1 */
     unsigned long rescaled;     /* range rescaled for range of new symbol */
@@ -440,7 +440,7 @@ void ApplySymbolRange(int symbol, stats_t *stats, char staticModel)
     /* new lower = old lower + rescaled new upper */
     stats->lower = stats->lower + (probability_t)rescaled;
 
-    if (!staticModel)
+    if (!model)
     {
         /* add new symbol to model */
         stats->cumulativeProb++;
@@ -579,11 +579,11 @@ void WriteRemaining(bit_file_t *bfpOut, stats_t *stats)
 *                it then uses to decode the rest of the file.
 *   Parameters : inFile - FILE stream to decode
 *                outFile - FILE stream to write decoded output to
-*                staticModel - TRUE if decoding with a static model
+*                model - model_t type value for adaptive or static model
 *   Effects    : Encoded file is decoded
-*   Returned   : TRUE for success, otherwise FALSE.
+*   Returned   : 0 for success, otherwise non-zero.
 ***************************************************************************/
-int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
+int ArDecodeFile(FILE *inFile, FILE *outFile, model_t model)
 {
     int c;
     probability_t unscaled;
@@ -599,7 +599,7 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
     if (NULL == inFile)
     {
         fprintf(stderr, "Error: Invalid input file\n");
-        return FALSE;
+        return -1;
     }
 
     bInFile = MakeBitFile(inFile, BF_READ);
@@ -607,17 +607,17 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
     if (NULL == bInFile)
     {
         fprintf(stderr, "Error: Unable to create binary input file\n");
-        return FALSE;
+        return -1;
     }
 
-    if (staticModel)
+    if (MODEL_STATIC == model)
     {
         /* build probability ranges from header in file */
-        if (ReadHeader(bInFile, &stats) == FALSE)
+        if (0 != ReadHeader(bInFile, &stats))
         {
             BitFileClose(bInFile);
             fclose(outFile);
-            return FALSE;
+            return -1;
         }
     }
     else
@@ -651,13 +651,13 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
         fputc((char)c, outFile);
 
         /* factor out symbol */
-        ApplySymbolRange(c, &stats, staticModel);
+        ApplySymbolRange(c, &stats, model);
         ReadEncodedBits(bInFile, &stats);
     }
 
     inFile = BitFileToFILE(bInFile);        /* make file normal again */
 
-    return TRUE;
+    return 0;
 }
 
 /****************************************************************************
@@ -669,7 +669,7 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel)
 *   Parameters : bfpIn - file to read from
 *                stats - structure containing data used to encode symbols
 *   Effects    : Probability range list is built.
-*   Returned   : TRUE for success, otherwise FALSE
+*   Returned   : 0 for success, otherwise non-zero.
 ****************************************************************************/
 int ReadHeader(bit_file_t *bfpIn, stats_t *stats)
 {
@@ -696,7 +696,7 @@ int ReadHeader(bit_file_t *bfpIn, stats_t *stats)
         {
             /* premature EOF */
             fprintf(stderr, "Error: unexpected EOF\n");
-            return FALSE;
+            return -1;
         }
 
         PrintDebug(("%02X\t%d\n", c, count));
@@ -713,7 +713,7 @@ int ReadHeader(bit_file_t *bfpIn, stats_t *stats)
 
     /* convert counts to range list */
     SymbolCountToProbabilityRanges(stats);
-    return TRUE;
+    return 0;
 }
 
 /****************************************************************************
@@ -726,7 +726,7 @@ int ReadHeader(bit_file_t *bfpIn, stats_t *stats)
 *   Effects    : upper, lower, and code are initialized.  The probability
 *                range list will also be initialized if an adaptive model
 *                will be used.
-*   Returned   : TRUE for success, otherwise FALSE
+*   Returned   : None
 ****************************************************************************/
 void InitializeDecoder(bit_file_t *bfpIn, stats_t *stats)
 {

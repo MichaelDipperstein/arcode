@@ -8,20 +8,6 @@
 *   Date    : April 2, 2004
 *
 ****************************************************************************
-*   UPDATES
-*
-*   $Id: arcode.h,v 1.3 2007/09/08 15:47:02 michael Exp $
-*   $Log: arcode.h,v $
-*   Revision 1.3  2007/09/08 15:47:02  michael
-*   Changes required for LGPL v3.
-*
-*   Revision 1.2  2004/08/13 13:09:46  michael
-*   Add support for adaptive encoding
-*
-*   Revision 1.1.1.1  2004/04/04 14:54:13  michael
-*   Initial version
-*
-****************************************************************************
 *
 * Arcode: An ANSI C Arithmetic Encoding/Decoding Routines
 * Copyright (C) 2004, 2006-2007, 2014 by
@@ -48,23 +34,19 @@
 #define _ARCODE_H_
 
 /***************************************************************************
-*                                CONSTANTS
+*                            TYPE DEFINITIONS
 ***************************************************************************/
-#ifndef FALSE
-#define FALSE       0
-#endif
-
-#ifndef TRUE
-#define TRUE        1
-#endif
+typedef enum
+{
+    MODEL_ADAPTIVE = 0,
+    MODEL_STATIC = 1
+} model_t;
 
 /***************************************************************************
 *                               PROTOTYPES
 ***************************************************************************/
- /* encode inFile */
-int ArEncodeFile(FILE *inFile, FILE *outFile, char staticModel);
-
-/* decode inFile*/
-int ArDecodeFile(FILE *inFile, FILE *outFile, char staticModel);
+ /* encode/decode routines from inFile to outFile.  returns 0 on success */
+int ArEncodeFile(FILE *inFile, FILE *outFile, model_t model);
+int ArDecodeFile(FILE *inFile, FILE *outFile, model_t model);
 
 #endif  /* ndef _ARCODE_H_ */

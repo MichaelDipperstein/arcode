@@ -42,6 +42,17 @@
 ***************************************************************************/
 
 /***************************************************************************
+*                                CONSTANTS
+***************************************************************************/
+#ifndef FALSE
+#define FALSE   0
+#endif
+
+#ifndef TRUE
+#define TRUE    1
+#endif
+
+/***************************************************************************
 *                                FUNCTIONS
 ***************************************************************************/
 
@@ -61,13 +72,13 @@ int main(int argc, char *argv[])
     option_t *optList, *thisOpt;
     FILE *inFile, *outFile; /* input & output files */
     char encode;            /* encode/decode */
-    char staticModel;       /* static/adaptive model*/
+    model_t model;          /* static/adaptive model*/
 
     /* initialize data */
     inFile = NULL;
     outFile = NULL;
     encode = TRUE;
-    staticModel = TRUE;
+    model = MODEL_STATIC;
 
     /* parse command line */
     optList = GetOptList(argc, argv, "acdi:o:h?");
@@ -78,7 +89,7 @@ int main(int argc, char *argv[])
         switch(thisOpt->option)
         {
             case 'a':       /* adaptive model vs. static */
-                staticModel = FALSE;
+                model = MODEL_ADAPTIVE;
                 break;
 
             case 'c':       /* compression mode */
@@ -197,11 +208,11 @@ int main(int argc, char *argv[])
     /* we have valid parameters encode or decode */
     if (encode)
     {
-        ArEncodeFile(inFile, outFile, staticModel);
+        ArEncodeFile(inFile, outFile, model);
     }
     else
     {
-        ArDecodeFile(inFile, outFile, staticModel);
+        ArDecodeFile(inFile, outFile, model);
     }
 
     fclose(inFile);
