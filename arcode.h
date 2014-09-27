@@ -46,7 +46,7 @@ typedef enum
 *                               PROTOTYPES
 ***************************************************************************/
  /* encode/decode routines from inFile to outFile.  returns 0 on success */
-int ArEncodeFile(FILE *inFile, FILE *outFile, model_t model);
-int ArDecodeFile(FILE *inFile, FILE *outFile, model_t model);
+int ArEncodeFile(FILE *inFile, FILE *outFile, const model_t model);
+int ArDecodeFile(FILE *inFile, FILE *outFile, const model_t model);
 
 #endif  /* ndef _ARCODE_H_ */

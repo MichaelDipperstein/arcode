@@ -127,7 +127,7 @@ static void ReadEncodedBits(bit_file_t *bfpIn, stats_t *stats);
 *   Effects    : File is arithmetically encoded
 *   Returned   : 0 for success, otherwise non-zero.
 ***************************************************************************/
-int ArEncodeFile(FILE *inFile, FILE *outFile, model_t model)
+int ArEncodeFile(FILE *inFile, FILE *outFile, const model_t model)
 {
     int c;
     bit_file_t *bOutFile;               /* encoded output */
@@ -583,7 +583,7 @@ static void WriteRemaining(bit_file_t *bfpOut, stats_t *stats)
 *   Effects    : Encoded file is decoded
 *   Returned   : 0 for success, otherwise non-zero.
 ***************************************************************************/
-int ArDecodeFile(FILE *inFile, FILE *outFile, model_t model)
+int ArDecodeFile(FILE *inFile, FILE *outFile, const model_t model)
 {
     int c;
     probability_t unscaled;
