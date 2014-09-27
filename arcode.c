@@ -94,23 +94,23 @@ typedef struct
 *                               PROTOTYPES
 ***************************************************************************/
 /* read write file headers */
-void WriteHeader(bit_file_t *bfpOut, stats_t *stats);
-int ReadHeader(bit_file_t *bfpIn, stats_t *stats);
+static void WriteHeader(bit_file_t *bfpOut, stats_t *stats);
+static int ReadHeader(bit_file_t *bfpIn, stats_t *stats);
 
 /* applies symbol's ranges to current upper and lower range bounds */
-void ApplySymbolRange(int symbol, stats_t *stats, char model);
+static void ApplySymbolRange(int symbol, stats_t *stats, char model);
 
 /* routines for encoding*/
-void WriteEncodedBits(bit_file_t *bfpOut, stats_t *stats);
-void WriteRemaining(bit_file_t *bfpOut, stats_t *stats);
-int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats);
-void InitializeAdaptiveProbabilityRangeList(stats_t *stats);
+static void WriteEncodedBits(bit_file_t *bfpOut, stats_t *stats);
+static void WriteRemaining(bit_file_t *bfpOut, stats_t *stats);
+static int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats);
+static void InitializeAdaptiveProbabilityRangeList(stats_t *stats);
 
 /* routines for decoding */
-void InitializeDecoder(bit_file_t *bfpOut, stats_t *stats);
-probability_t GetUnscaledCode(stats_t *stats);
-int GetSymbolFromProbability(probability_t probability, stats_t *stats);
-void ReadEncodedBits(bit_file_t *bfpIn, stats_t *stats);
+static void InitializeDecoder(bit_file_t *bfpOut, stats_t *stats);
+static probability_t GetUnscaledCode(stats_t *stats);
+static int GetSymbolFromProbability(probability_t probability, stats_t *stats);
+static void ReadEncodedBits(bit_file_t *bfpIn, stats_t *stats);
 
 /***************************************************************************
 *                                FUNCTIONS
@@ -207,7 +207,7 @@ int ArEncodeFile(FILE *inFile, FILE *outFile, model_t model)
 *                probability bounds for each symbol.
 *   Returned   : None
 ***************************************************************************/
-void SymbolCountToProbabilityRanges(stats_t *stats)
+static void SymbolCountToProbabilityRanges(stats_t *stats)
 {
     int c;
 
@@ -243,7 +243,7 @@ void SymbolCountToProbabilityRanges(stats_t *stats)
 *                each symbol.
 *   Returned   : 0 for success, otherwise non-zero.
 ***************************************************************************/
-int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats)
+static int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats)
 {
     int c;
 
@@ -322,7 +322,7 @@ int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats)
 *   Effects    : Symbol values and symbol counts are written to a file.
 *   Returned   : None
 ***************************************************************************/
-void WriteHeader(bit_file_t *bfpOut, stats_t *stats)
+static void WriteHeader(bit_file_t *bfpOut, stats_t *stats)
 {
     int c;
     probability_t previous = 0;         /* symbol count so far */
@@ -366,7 +366,7 @@ void WriteHeader(bit_file_t *bfpOut, stats_t *stats)
 *                for each symbol.
 *   Returned   : NONE
 ***************************************************************************/
-void InitializeAdaptiveProbabilityRangeList(stats_t *stats)
+static void InitializeAdaptiveProbabilityRangeList(stats_t *stats)
 {
     int c;
 
@@ -409,7 +409,7 @@ void InitializeAdaptiveProbabilityRangeList(stats_t *stats)
 *                probability range list will be updated.
 *   Returned   : None
 ***************************************************************************/
-void ApplySymbolRange(int symbol, stats_t *stats, char model)
+static void ApplySymbolRange(int symbol, stats_t *stats, char model)
 {
     unsigned long range;        /* must be able to hold max upper + 1 */
     unsigned long rescaled;     /* range rescaled for range of new symbol */
@@ -501,7 +501,7 @@ void ApplySymbolRange(int symbol, stats_t *stats, char model)
 *                addition of a new symbol to the encoded stream.
 *   Returned   : None
 ***************************************************************************/
-void WriteEncodedBits(bit_file_t *bfpOut, stats_t *stats)
+static void WriteEncodedBits(bit_file_t *bfpOut, stats_t *stats)
 {
     for (;;)
     {
@@ -560,7 +560,7 @@ void WriteEncodedBits(bit_file_t *bfpOut, stats_t *stats)
 *                file.
 *   Returned   : None
 ***************************************************************************/
-void WriteRemaining(bit_file_t *bfpOut, stats_t *stats)
+static void WriteRemaining(bit_file_t *bfpOut, stats_t *stats)
 {
     BitFilePutBit((stats->lower & MASK_BIT(1)) != 0, bfpOut);
 
@@ -671,7 +671,7 @@ int ArDecodeFile(FILE *inFile, FILE *outFile, model_t model)
 *   Effects    : Probability range list is built.
 *   Returned   : 0 for success, otherwise non-zero.
 ****************************************************************************/
-int ReadHeader(bit_file_t *bfpIn, stats_t *stats)
+static int ReadHeader(bit_file_t *bfpIn, stats_t *stats)
 {
     int c;
     probability_t count;
@@ -728,7 +728,7 @@ int ReadHeader(bit_file_t *bfpIn, stats_t *stats)
 *                will be used.
 *   Returned   : None
 ****************************************************************************/
-void InitializeDecoder(bit_file_t *bfpIn, stats_t *stats)
+static void InitializeDecoder(bit_file_t *bfpIn, stats_t *stats)
 {
     int i;
 
@@ -760,7 +760,7 @@ void InitializeDecoder(bit_file_t *bfpIn, stats_t *stats)
 *   Effects    : None
 *   Returned   : The probability of the current symbol
 ****************************************************************************/
-probability_t GetUnscaledCode(stats_t *stats)
+static probability_t GetUnscaledCode(stats_t *stats)
 {
     unsigned long range;        /* must be able to hold max upper + 1 */
     unsigned long unscaled;
@@ -785,7 +785,7 @@ probability_t GetUnscaledCode(stats_t *stats)
 *   Effects    : None
 *   Returned   : -1 for failure, otherwise encoded symbol
 ****************************************************************************/
-int GetSymbolFromProbability(probability_t probability, stats_t *stats)
+static int GetSymbolFromProbability(probability_t probability, stats_t *stats)
 {
     int first, last, middle;    /* indicies for binary search */
 
@@ -845,7 +845,7 @@ int GetSymbolFromProbability(probability_t probability, stats_t *stats)
 *                encoded stream.
 *   Returned   : None
 ***************************************************************************/
-void ReadEncodedBits(bit_file_t *bfpIn, stats_t *stats)
+static void ReadEncodedBits(bit_file_t *bfpIn, stats_t *stats)
 {
     int nextBit;        /* next bit from encoded input */
 
