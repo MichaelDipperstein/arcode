@@ -1,14 +1,14 @@
 ############################################################################
 # Makefile for arithmetic encode/decode library and sample program
 # arguements:
-#	No argument			Build everythin
+#	No argument			Build everything
 #	DEBUG=1				Build with debugging output and symbols
 #	clean				Delete all compiled/linked output
 #
 ############################################################################
 CC = gcc
 LD = gcc
-CFLAGS = -O2 -Wall -Wextra -ansi -pedantic -c
+CFLAGS = -Wall -Wextra -ansi -pedantic -c
 LDFLAGS = -O2 -o
 
 # Libraries
@@ -29,7 +29,7 @@ endif
 
 # Handle debug/no debug
 ifneq ($(DEBUG), 1)
-	CFLAGS += -DNDEBUG
+	CFLAGS += -O2 -DNDEBUG
 else
 	CFLAGS += -g
 endif

@@ -34,6 +34,7 @@
 ***************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <limits.h>
 #include <assert.h>
 #include "arcode.h"
@@ -262,10 +263,7 @@ static int BuildProbabilityRangeList(FILE *fpIn, stats_t *stats)
     }
 
     /* start with no symbols counted */
-    for (c = 0; c < EOF_CHAR; c++)
-    {
-        countArray[c] = 0;
-    }
+    memset(countArray, 0, sizeof(countArray));
 
     while ((c = fgetc(fpIn)) != EOF)
     {
@@ -679,10 +677,7 @@ static int ReadHeader(bit_file_t *bfpIn, stats_t *stats)
     PrintDebug(("HEADER:\n"));
     stats->cumulativeProb = 0;
 
-    for (c = 0; c <= UPPER(EOF_CHAR); c++)
-    {
-        stats->ranges[UPPER(c)] = 0;
-    }
+    memset(stats->ranges, 0, sizeof(stats->ranges));
 
     /* read [character, probability] sets */
     for (;;)
