@@ -1,9 +1,9 @@
 ############################################################################
 # Makefile for arithmetic encode/decode library and sample program
 # arguements:
-#	No argument			Build everything
-#	DEBUG=1				Build with debugging output and symbols
-#	clean				Delete all compiled/linked output
+#	No argument		Build everything
+#	DEBUG=1			Build with debugging output and symbols
+#	clean			Delete all compiled/linked output
 #
 ############################################################################
 CC = gcc
@@ -12,7 +12,7 @@ CFLAGS = -Wall -Wextra -ansi -pedantic -c
 LDFLAGS = -O2 -o
 
 # Libraries
-LIBS = -L. -larcode -loptlist
+LIBS = -L. -Lbitfile -Loptlist -larcode -lbitfile -loptlist
 
 # Treat NT and non-NT windows the same
 ifeq ($(OS),Windows_NT)
@@ -36,30 +36,28 @@ endif
 
 all:		sample$(EXE)
 
-sample$(EXE):	sample.o libarcode.a liboptlist.a
+sample$(EXE):	sample.o libarcode.a optlist/liboptlist.a bitfile/libbitfile.a
 		$(LD) $< $(LIBS) $(LDFLAGS) $@
 
-sample.o:	sample.c arcode.h optlist.h
+sample.o:	sample.c arcode.h optlist/optlist.h
 		$(CC) $(CFLAGS) $<
 
-libarcode.a:	arcode.o bitfile.o
-		ar crv libarcode.a arcode.o bitfile.o
+libarcode.a:	arcode.o
+		ar crv libarcode.a arcode.o
 		ranlib libarcode.a
 
-arcode.o:	arcode.c arcode.h bitfile.h
+arcode.o:	arcode.c arcode.h bitfile/bitfile.h
 		$(CC) $(CFLAGS) $<
 
-bitfile.o:	bitfile.c bitfile.h
-		$(CC) $(CFLAGS) $<
+bitfile/libbitfile.a:
+		cd bitfile && $(MAKE) libbitfile.a
 
-liboptlist.a:	optlist.o
-		ar crv liboptlist.a optlist.o
-		ranlib liboptlist.a
-
-optlist.o:	optlist.c optlist.h
-		$(CC) $(CFLAGS) $<
+optlist/liboptlist.a:
+		cd optlist && $(MAKE) liboptlist.a
 
 clean:
 		$(DEL) *.o
 		$(DEL) *.a
 		$(DEL) sample$(EXE)
+		cd optlist && $(MAKE) clean
+		cd bitfile && $(MAKE) clean

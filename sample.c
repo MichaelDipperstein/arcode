@@ -9,7 +9,7 @@
 ****************************************************************************
 *
 * SAMPLE: Sample usage of the arcode Arithmetic Encoding Library
-* Copyright (C) 2004, 2007, 2014 by
+* Copyright (C) 2004, 2007, 2014, 2017 by
 * Michael Dipperstein (mdipper@alumni.engr.ucsb.edu)
 *
 * This file is part of the arcode library.
@@ -34,7 +34,7 @@
 ***************************************************************************/
 #include <stdio.h>
 #include <stdlib.h>
-#include "optlist.h"
+#include "optlist/optlist.h"
 #include "arcode.h"
 
 /***************************************************************************

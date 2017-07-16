@@ -9,7 +9,7 @@
 ****************************************************************************
 *
 * Arcode: An ANSI C Arithmetic Encoding/Decoding Routines
-* Copyright (C) 2004, 2006-2007, 2014 by
+* Copyright (C) 2004, 2006-2007, 2014, 2017 by
 * Michael Dipperstein (mdipper@alumni.engr.ucsb.edu)
 *
 * This file is part of the arcode library.
@@ -38,7 +38,7 @@
 #include <limits.h>
 #include <assert.h>
 #include "arcode.h"
-#include "bitfile.h"
+#include "bitfile/bitfile.h"
 
 #ifdef NDEBUG
 #define PrintDebug(ARGS) do {} while (0)

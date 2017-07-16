@@ -12,15 +12,13 @@ FILES
 -----
 arcode.c        - Library of Arithmetic encoding and decoding routines.
 arcode.h        - Header containing prototypes for library functions.
-bitfile.c       - Library to allow bitwise reading and writing of files.
-bitfile.h       - Header for bitfile library.
 COPYING         - Rules for copying and distributing LGPL software
-getopt.c        - LGPL version of getopt source from GNU project
-getopt.h        - LGPL version of getopt headers from GNU project
 LICENSE         - GNU Lesser General Public License
 Makefile        - makefile for this project (assumes gcc compiler and GNU make)
 README          - this file
 sample.c        - Demonstration of how to use Arithmetic library functions
+optlist/        - Subtree containing optlist command line option parser library
+bitfile/        - Subtree containing bitfile bitwise file library
 
 BUILDING
 --------
@@ -108,6 +106,7 @@ HISTORY
 10/26/14  - Upgrade to latest Bitfile and Oplist Libraries
           - Tighter adherence to Michael Barr's "Top 10 Bug-Killing Coding
             Standard Rules" (http://www.barrgroup.com/webinars/10rules).
+07/15/17  - Changes for easier use with GitHub
 
 TODO
 ----
