@@ -29,6 +29,11 @@ To build these files with GNU make and gcc:
 
 The executable will be named sample (or sample.exe).
 
+GIT NOTE: Updates to subtrees optlist and bitfile don't get pulled by "git pull"
+Use the following commands to pull their updates:
+git subtree pull --prefix optlist https://github.com/MichaelDipperstein/optlist.git master --squash
+git subtree pull --prefix bitfile https://github.com/MichaelDipperstein/bitfile.git master --squash
+
 USAGE
 -----
 Usage: sample <options>
@@ -106,6 +111,8 @@ HISTORY
           - Tighter adherence to Michael Barr's "Top 10 Bug-Killing Coding
             Standard Rules" (http://www.barrgroup.com/webinars/10rules).
 07/15/17  - Changes for easier use with GitHub
+09/19/19  - Updated e-mail address
+          - Updated optlist and bitfile subtrees
 
 TODO
 ----
@@ -114,4 +121,4 @@ TODO
 
 AUTHOR
 ------
-Michael Dipperstein (mdipper@alumni.engr.ucsb.edu)
+Michael Dipperstein (mdipperstein@gmail.com)
